@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Candle Momente & Co — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --navy:#332D26;
+  --beige:#E7DED4;
+  --beige-light:#F7F4EF;
+  --accent:#7A5B3A;
+  --border:#D9CBB4;
+  --bg:#FBFAF8;
+  --card:#FFFFFF;
+  --text:#332D26;
+  --text-soft:#7A7264;
+  --green:#3F7A4E;
+  --green-bg:#E7F1E9;
+  --amber:#9A6B1F;
+  --amber-bg:#FBF0DC;
+  --red:#A13F3F;
+  --red-bg:#F7E7E7;
+  --blue:#3F5F7A;
+  --blue-bg:#E7EEF4;
+  --shadow: 0 1px 3px rgba(51,45,38,0.08), 0 1px 2px rgba(51,45,38,0.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#211D18; --card:#2B2620; --text:#EDE7DD; --text-soft:#B3A99A;
+    --border:#4A4238; --beige:#3A342C; --beige-light:#2F2A24;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#211D18; --card:#2B2620; --text:#EDE7DD; --text-soft:#B3A99A;
+  --border:#4A4238; --beige:#3A342C; --beige-light:#2F2A24;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:'Open Sans',system-ui,sans-serif;
+  font-size:14px; line-height:1.45;
+}
+a{color:inherit;}
+button{font-family:inherit;}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:6px;}
+
+.app{max-width:1280px;margin:0 auto;padding:0 20px 60px;}
+
+header.top{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 20px;gap:16px;flex-wrap:wrap;
+}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-mark{
+  width:40px;height:40px;border-radius:10px;background:var(--navy);
+  display:flex;align-items:center;justify-content:center;color:#fff;
+  font-weight:700;font-size:16px;flex-shrink:0;
+}
+.brand-text h1{font-size:17px;margin:0;font-weight:700;}
+.brand-text p{margin:0;font-size:12px;color:var(--text-soft);}
+
+nav.tabs{
+  display:flex;gap:4px;padding:0 20px 12px;flex-wrap:wrap;
+  border-bottom:1px solid var(--border);
+}
+nav.tabs button{
+  border:none;background:transparent;color:var(--text-soft);
+  padding:9px 14px;border-radius:8px 8px 0 0;cursor:pointer;
+  font-size:13.5px;font-weight:600;transition:.15s;
+}
+nav.tabs button:hover{background:var(--beige-light);color:var(--text);}
+nav.tabs button.active{color:var(--navy);background:var(--beige-light);}
+nav.tabs button.active{box-shadow: inset 0 -2px 0 var(--navy);}
+
+main{padding-top:18px;}
+.view{display:none;}
+.view.active{display:block;}
+
+h2.view-title{font-size:19px;margin:0 0 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+h2.view-title small{font-size:12px;font-weight:400;color:var(--text-soft);}
+
+.btn{
+  border:1px solid var(--border);background:var(--card);color:var(--text);
+  padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;
+  display:inline-flex;align-items:center;gap:6px;transition:.15s;white-space:nowrap;
+}
+.btn:hover{background:var(--beige-light);}
+.btn-primary{background:var(--navy);border-color:var(--navy);color:#fff;}
+.btn-primary:hover{opacity:.9;background:var(--navy);}
+.btn-danger{color:var(--red);}
+.btn-sm{padding:5px 10px;font-size:12px;border-radius:6px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);}
+.card-pad{padding:18px;}
+
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px;}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);}
+.stat-card .label{font-size:12px;color:var(--text-soft);font-weight:600;text-transform:uppercase;letter-spacing:.03em;}
+.stat-card .value{font-size:26px;font-weight:700;margin-top:4px;color:var(--navy);}
+.stat-card .sub{font-size:12px;color:var(--text-soft);margin-top:2px;}
+
+.dash-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;}
+@media (max-width:820px){.dash-grid{grid-template-columns:1fr;}}
+.panel-title{font-size:14px;font-weight:700;margin:0 0 12px;display:flex;justify-content:space-between;align-items:center;}
+.mini-list{display:flex;flex-direction:column;gap:2px;}
+.mini-row{display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-bottom:1px solid var(--border);font-size:13px;}
+.mini-row:last-child{border-bottom:none;}
+.mini-row .name{font-weight:600;}
+.mini-row .amt{color:var(--navy);font-weight:700;}
+.empty-hint{color:var(--text-soft);font-size:13px;padding:14px 4px;}
+
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;}
+.search-input{
+  flex:1;min-width:180px;padding:8px 12px;border:1px solid var(--border);
+  border-radius:8px;background:var(--card);color:var(--text);font-size:13px;
+}
+select.filter{padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:13px;}
+
+table{width:100%;border-collapse:collapse;font-size:13px;}
+table thead th{
+  text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;
+  color:var(--text-soft);border-bottom:1px solid var(--border);padding:8px 10px;font-weight:700;
+}
+table tbody td{padding:10px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+table tbody tr:last-child td{border-bottom:none;}
+table tbody tr.clickable{cursor:pointer;}
+table tbody tr.clickable:hover{background:var(--beige-light);}
+.num{text-align:right;font-variant-numeric:tabular-nums;}
+.center{text-align:center;}
+
+.badge{
+  display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;
+  font-size:11.5px;font-weight:700;white-space:nowrap;
+}
+.badge-offen{background:var(--amber-bg);color:var(--amber);}
+.badge-in_bearbeitung{background:var(--blue-bg);color:var(--blue);}
+.badge-geliefert{background:var(--green-bg);color:var(--green);}
+.badge-abgeschlossen{background:var(--beige);color:var(--text-soft);}
+.badge-bezahlt{background:var(--green-bg);color:var(--green);}
+.badge-ueberfaellig{background:var(--red-bg);color:var(--red);}
+
+.status-select{border:1px solid var(--border);border-radius:999px;font-size:11.5px;font-weight:700;
+  padding:3px 8px;background:var(--card);color:var(--text);cursor:pointer;}
+
+/* Modal */
+.modal-backdrop{
+  position:fixed;inset:0;background:rgba(30,26,20,.45);
+  display:none;align-items:flex-start;justify-content:center;z-index:100;
+  padding:40px 16px;overflow-y:auto;
+}
+.modal-backdrop.open{display:flex;}
+.modal{
+  background:var(--card);border-radius:14px;max-width:640px;width:100%;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);animation:pop .12s ease-out;
+}
+@keyframes pop{from{transform:translateY(6px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--border);}
+.modal-head h3{margin:0;font-size:16px;}
+.modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-soft);line-height:1;padding:4px;}
+.modal-body{padding:20px;max-height:70vh;overflow-y:auto;}
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:16px 20px;border-top:1px solid var(--border);}
+
+.form-row{margin-bottom:13px;}
+.form-row label{display:block;font-size:12px;font-weight:700;color:var(--text-soft);margin-bottom:5px;}
+.form-row input,.form-row select,.form-row textarea{
+  width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;
+  background:var(--card);color:var(--text);font-size:13.5px;font-family:inherit;
+}
+.form-row textarea{resize:vertical;min-height:60px;}
+.form-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.form-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+@media (max-width:520px){.form-grid2,.form-grid3{grid-template-columns:1fr;}}
+
+.line-items{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:4px;}
+.line-item-row{display:grid;grid-template-columns:2fr 70px 90px 90px 30px;gap:8px;padding:8px 10px;align-items:center;border-bottom:1px solid var(--border);}
+.line-item-row:last-child{border-bottom:none;}
+.line-item-row.head{background:var(--beige-light);font-size:11px;font-weight:700;color:var(--text-soft);text-transform:uppercase;}
+.line-item-row select,.line-item-row input{padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);}
+.rm-line{background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0;}
+.add-line-btn{margin:10px;}
+
+.tag-btn{
+  border:1px solid var(--border);background:var(--beige-light);border-radius:999px;
+  font-size:12px;padding:4px 10px;cursor:pointer;font-weight:600;
+}
+.tag-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+
+/* Customer detail */
+.detail-wrap{display:grid;grid-template-columns:280px 1fr;gap:18px;}
+@media (max-width:820px){.detail-wrap{grid-template-columns:1fr;}}
+.detail-side .card-pad{display:flex;flex-direction:column;gap:8px;}
+.detail-side h3{margin:0 0 2px;font-size:16px;}
+.detail-side .muted{color:var(--text-soft);font-size:13px;}
+.section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text-soft);margin:22px 0 10px;}
+.section-title:first-child{margin-top:0;}
+.note-item{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:13px;}
+.note-item .meta{display:flex;justify-content:space-between;color:var(--text-soft);font-size:11.5px;margin-bottom:4px;}
+.note-item.done{opacity:.55;text-decoration:line-through;}
+.file-row{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:13px;}
+.file-row a{color:var(--accent);font-weight:600;text-decoration:none;}
+.file-row a:hover{text-decoration:underline;}
+
+.back-link{display:inline-flex;align-items:center;gap:6px;color:var(--text-soft);cursor:pointer;font-size:13px;font-weight:600;margin-bottom:10px;}
+.back-link:hover{color:var(--text);}
+
+.toast{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  background:var(--navy);color:#fff;padding:10px 18px;border-radius:10px;
+  font-size:13px;box-shadow:var(--shadow);z-index:200;opacity:0;pointer-events:none;
+  transition:opacity .2s, transform .2s;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+
+.loading-screen{
+  position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:10px;z-index:300;
+}
+.loading-screen.hidden{display:none;}
+.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--navy);border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.empty-state{text-align:center;padding:50px 20px;color:var(--text-soft);}
+.empty-state .big{font-size:32px;margin-bottom:8px;}
+
+.print-view{display:none;}
+@media print{
+  body *{visibility:hidden;}
+  .print-view, .print-view *{visibility:visible;}
+  .print-view{display:block;position:absolute;top:0;left:0;width:100%;padding:20px;}
+}
+.footer-note{text-align:center;color:var(--text-soft);font-size:11.5px;margin-top:30px;padding-top:16px;border-top:1px solid var(--border);}
+</style>
+</head>
+<body>
+
+<div class="loading-screen" id="loadingScreen">
+  <div class="spinner"></div>
+  <div style="font-size:13px;color:var(--text-soft);">Dashboard wird geladen …</div>
+</div>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="brand-mark">CM</div>
+      <div class="brand-text">
+        <h1>Candle Momente & Co</h1>
+        <p>Kunden · Bestellungen · Rechnungen</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn" id="globalSearchBtn">🔍 Suche</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="dashboard" class="active">Dashboard</button>
+    <button data-tab="kunden">Kunden</button>
+    <button data-tab="bestellungen">Bestellungen</button>
+    <button data-tab="artikel">Artikel</button>
+    <button data-tab="rechnungen">Rechnungen</button>
+  </nav>
+
+  <main>
+
+    <!-- DASHBOARD -->
+    <section class="view active" id="view-dashboard">
+      <h2 class="view-title">Dashboard <small id="dashDate"></small></h2>
+      <div class="stat-grid" id="statGrid"></div>
+      <div class="dash-grid">
+        <div class="card card-pad">
+          <div class="panel-title">Offene Bestellungen</div>
+          <div class="mini-list" id="dashOpenOrders"></div>
+        </div>
+        <div class="card card-pad">
+          <div class="panel-title">Offene Lieferungen</div>
+          <div class="mini-list" id="dashOpenDeliveries"></div>
+        </div>
+        <div class="card card-pad">
+          <div class="panel-title">Top-Kunden (Umsatz)</div>
+          <div class="mini-list" id="dashTopCustomers"></div>
+        </div>
+        <div class="card card-pad">
+          <div class="panel-title">Meistverkaufte Artikel</div>
+          <div class="mini-list" id="dashTopArticles"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- KUNDEN LIST -->
+    <section class="view" id="view-kunden">
+      <h2 class="view-title">Kunden <span></span></h2>
+      <div class="toolbar">
+        <input class="search-input" id="kundenSearch" placeholder="Kunde, Ort oder E-Mail suchen …">
+        <button class="btn btn-primary" id="newKundeBtn">+ Neuer Kunde</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Firma / Name</th><th>Ansprechpartner</th><th>Ort</th><th>Kontakt</th><th class="num">Umsatz</th></tr></thead>
+          <tbody id="kundenTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- KUNDEN DETAIL -->
+    <section class="view" id="view-kunde-detail">
+      <div class="back-link" id="backToKunden">← Zurück zu Kunden</div>
+      <div class="detail-wrap">
+        <div class="detail-side">
+          <div class="card card-pad" id="kdInfoCard"></div>
+        </div>
+        <div>
+          <div class="card card-pad">
+            <div class="section-title">Bestellungen</div>
+            <table><tbody id="kdOrders"></tbody></table>
+            <div class="section-title">Rechnungen</div>
+            <table><tbody id="kdInvoices"></tbody></table>
+            <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>Notizen & Aufgaben</span>
+              <button class="btn btn-sm" id="kdAddNoteBtn">+ Notiz / Aufgabe</button>
+            </div>
+            <div id="kdNotes"></div>
+            <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>Dokumente</span>
+              <label class="btn btn-sm" style="cursor:pointer;">
+                📎 Datei hinzufügen
+                <input type="file" id="kdFileInput" style="display:none;">
+              </label>
+            </div>
+            <div id="kdFiles"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BESTELLUNGEN -->
+    <section class="view" id="view-bestellungen">
+      <h2 class="view-title">Bestellungen</h2>
+      <div class="toolbar">
+        <input class="search-input" id="bestellungenSearch" placeholder="Kunde oder Auftragsnr. suchen …">
+        <select class="filter" id="bestellungenStatusFilter">
+          <option value="">Alle Status</option>
+          <option value="offen">Offen</option>
+          <option value="in_bearbeitung">In Bearbeitung</option>
+          <option value="geliefert">Geliefert</option>
+          <option value="abgeschlossen">Abgeschlossen</option>
+        </select>
+        <button class="btn btn-primary" id="newBestellungBtn">+ Neue Bestellung</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Nr.</th><th>Kunde</th><th>Datum</th><th class="num">Betrag</th><th>Status</th><th></th></tr></thead>
+          <tbody id="bestellungenTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ARTIKEL -->
+    <section class="view" id="view-artikel">
+      <h2 class="view-title">Artikel</h2>
+      <div class="toolbar">
+        <input class="search-input" id="artikelSearch" placeholder="Artikel suchen …">
+        <button class="btn btn-primary" id="newArtikelBtn">+ Neuer Artikel</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Artikel</th><th>Kategorie</th><th class="num">Preis</th><th>Einheit</th><th class="num">Verkauft</th><th></th></tr></thead>
+          <tbody id="artikelTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- RECHNUNGEN -->
+    <section class="view" id="view-rechnungen">
+      <h2 class="view-title">Rechnungen</h2>
+      <div class="toolbar">
+        <input class="search-input" id="rechnungenSearch" placeholder="Kunde oder Rechnungsnr. suchen …">
+        <select class="filter" id="rechnungenStatusFilter">
+          <option value="">Alle Status</option>
+          <option value="offen">Offen</option>
+          <option value="bezahlt">Bezahlt</option>
+          <option value="ueberfaellig">Überfällig</option>
+        </select>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Nr.</th><th>Kunde</th><th>Datum</th><th class="num">Betrag</th><th>Zahlungsstatus</th><th></th></tr></thead>
+          <tbody id="rechnungenTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+  <div class="footer-note">Candle Momente & Co — internes Dashboard</div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" id="modalBox">
+    <div class="modal-head">
+      <h3 id="modalTitle">Titel</h3>
+      <button class="modal-close" id="modalCloseBtn">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<div class="print-view" id="printView"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+const LOGO_DATA_URI = "data:image/png;base64,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";
+
+
+/* ---------------- helpers ---------------- */
+const $ = (sel, root) => (root||document).querySelector(sel);
+const $$ = (sel, root) => Array.from((root||document).querySelectorAll(sel));
+const esc = (s) => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtCHF = (n) => (Number(n)||0).toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2}) + " CHF";
+const fmtDate = (iso) => { if(!iso) return "–"; const d = new Date(iso); if(isNaN(d)) return "–"; return d.toLocaleDateString('de-CH'); };
+const todayISO = () => new Date().toISOString().slice(0,10);
+const uid = () => Math.random().toString(36).slice(2,10);
+
+const STATUS_ORDER = {offen:"Offen", in_bearbeitung:"In Bearbeitung", geliefert:"Geliefert", abgeschlossen:"Abgeschlossen"};
+const STATUS_PAY = {offen:"Offen", bezahlt:"Bezahlt", ueberfaellig:"Überfällig"};
+const VAT_RATE = 0.081;
+
+function toast(msg){
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toast._h);
+  toast._h = setTimeout(()=>t.classList.remove("show"), 2400);
+}
+
+/* ---------------- state ---------------- */
+const state = {
+  customers: [],
+  articles: [],
+  orders: [],
+  invoices: [],
+  tasks: [],
+  ready: {customers:false, articles:false, orders:false, invoices:false, tasks:false},
+  currentTab: "dashboard",
+  currentCustomerId: null,
+};
+
+function allReady(){ return Object.values(state.ready).every(Boolean); }
+function maybeHideLoading(){
+  if(allReady()){
+    $("#loadingScreen").classList.add("hidden");
+    renderAll();
+  }
+}
+
+/* ---------------- Supabase config ---------------- */
+const SUPABASE_URL = "https://shrhfkjkglqqmeyifkyc.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_f9mmVh9oru-SXFdkRU3MIQ_jNRDWrUF";
+
+/* ---------------- db (Supabase) ---------------- */
+let db = null;      // supabase client
+let canWrite = true;
+
+// JS(camelCase) <-> DB(snake_case) column maps per table
+const COLMAP = {
+  customers: {name:"name", contact:"contact", street:"street", zip:"zip", ort:"ort", phone:"phone", email:"email", notes:"notes", files:"files", createdAt:"created_at"},
+  articles:  {name:"name", category:"category", price:"price", unit:"unit", createdAt:"created_at"},
+  orders:    {number:"number", customerId:"customer_id", date:"date", status:"status", items:"items", notes:"notes", invoiceId:"invoice_id", lieferscheinNumber:"lieferschein_number", lieferscheinDate:"lieferschein_date", createdAt:"created_at"},
+  invoices:  {number:"number", orderId:"order_id", customerId:"customer_id", date:"date", dueDate:"due_date", items:"items", vatRate:"vat_rate", paymentStatus:"payment_status", paidDate:"paid_date", createdAt:"created_at"},
+  tasks:     {customerId:"customer_id", type:"type", text:"text", dueDate:"due_date", done:"done", createdAt:"created_at"},
+};
+function toDb(col, data){
+  const map = COLMAP[col];
+  const out = {};
+  Object.keys(data).forEach(k=>{ const dbKey = map[k] || k; out[dbKey] = data[k]; });
+  return out;
+}
+function fromDb(col, row){
+  const map = COLMAP[col];
+  const rev = {}; Object.entries(map).forEach(([js,dbk])=> rev[dbk]=js);
+  const out = {id: row.id};
+  Object.keys(row).forEach(k=>{
+    if(k==="id") return;
+    const jsKey = rev[k] || k;
+    out[jsKey] = row[k];
+  });
+  return out;
+}
+
+async function initDb(){
+  if(!window.supabase){
+    $("#loadingScreen").querySelector("div:last-child").textContent = "Supabase-Bibliothek konnte nicht geladen werden.";
+    return;
+  }
+  db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  await Promise.all(["customers","articles","orders","invoices","tasks"].map(col=> fetchAll(col)));
+  subscribeRealtime();
+}
+
+async function fetchAll(col){
+  try{
+    const { data, error } = await db.from(col).select("*").order("created_at", {ascending:false});
+    if(error) throw error;
+    state[col] = (data||[]).map(row=> fromDb(col, row));
+  }catch(e){
+    toast("Fehler beim Laden: " + col);
+    state[col] = state[col] || [];
+  }
+  state.ready[col] = true;
+  maybeHideLoading();
+  if(allReady()) renderAll();
+}
+
+function subscribeRealtime(){
+  db.channel("all-changes")
+    .on("postgres_changes", {event:"*", schema:"public", table:"customers"}, ()=> fetchAll("customers").then(renderAll))
+    .on("postgres_changes", {event:"*", schema:"public", table:"articles"},  ()=> fetchAll("articles").then(renderAll))
+    .on("postgres_changes", {event:"*", schema:"public", table:"orders"},    ()=> fetchAll("orders").then(renderAll))
+    .on("postgres_changes", {event:"*", schema:"public", table:"invoices"},  ()=> fetchAll("invoices").then(renderAll))
+    .on("postgres_changes", {event:"*", schema:"public", table:"tasks"},     ()=> fetchAll("tasks").then(renderAll))
+    .subscribe();
+}
+
+async function dbAdd(col, data){
+  if(!db) return null;
+  try{
+    const { data: rows, error } = await db.from(col).insert(toDb(col, data)).select().single();
+    if(error) throw error;
+    await fetchAll(col);
+    return rows.id;
+  }catch(e){
+    toast("Speichern fehlgeschlagen.");
+    return null;
+  }
+}
+async function dbSet(col, id, data){ return dbUpdate(col, id, data); }
+async function dbUpdate(col, id, data){
+  if(!db) return false;
+  try{
+    const { error } = await db.from(col).update(toDb(col, data)).eq("id", id);
+    if(error) throw error;
+    await fetchAll(col);
+    return true;
+  }catch(e){ toast("Änderung fehlgeschlagen."); return false; }
+}
+async function dbDelete(col, id){
+  if(!db) return false;
+  try{
+    const { error } = await db.from(col).delete().eq("id", id);
+    if(error) throw error;
+    await fetchAll(col);
+    return true;
+  }catch(e){ toast("Löschen fehlgeschlagen."); return false; }
+}
+
+/* ---------------- derived helpers ---------------- */
+function customerById(id){ return state.customers.find(c=>c.id===id); }
+function articleById(id){ return state.articles.find(a=>a.id===id); }
+function orderById(id){ return state.orders.find(o=>o.id===id); }
+
+function orderTotal(order){
+  return (order.items||[]).reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.price)||0), 0);
+}
+function invoiceTotals(inv){
+  const subtotal = (inv.items||[]).reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.price)||0), 0);
+  const vatRate = inv.vatRate != null ? inv.vatRate : VAT_RATE;
+  const vat = subtotal * vatRate;
+  return {subtotal, vat, total: subtotal+vat};
+}
+/* ---------------- branded print template (matches the Excel vorlage) ---------------- */
+const BRAND = {navy:"#332D26", border:"#D9CBB4", soft:"#7A7264", accent:"#7A5B3A", totalBg:"#F2F2F2"};
+
+function brandedHeader(docTitle, metaRows){
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+      <div>
+        <img src="${LOGO_DATA_URI}" style="width:100px;height:auto;display:block;margin-bottom:6px;">
+        <div style="font-style:italic;font-size:11px;color:${BRAND.accent};margin-bottom:6px;">Handgemachte Kerzen &middot; Blumenarrangements &middot; Geschenke</div>
+        <div style="font-size:11px;color:${BRAND.navy};line-height:1.55;">
+          Ramona Marchiori<br>Hegistrasse 8<br>8542 Wiesendangen<br>Tel. 076 424 33 26<br>candlemomenteco@gmail.com
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:24px;font-weight:700;color:${BRAND.navy};letter-spacing:.02em;">${esc(docTitle)}</div>
+        <div style="margin-top:10px;font-size:11px;color:${BRAND.navy};">
+          ${metaRows.map(([l,v])=>`<div style="margin-bottom:2px;"><span style="color:${BRAND.soft};">${esc(l)}:</span> <strong>${esc(v)}</strong></div>`).join("")}
+        </div>
+      </div>
+    </div>
+    <div style="height:4px;background:${BRAND.navy};margin:14px 0 18px;"></div>
+  `;
+}
+function brandedCustomerBlock(c){
+  return `<div style="font-size:11px;color:${BRAND.soft};font-weight:700;text-transform:uppercase;margin-bottom:4px;">Kunde / Lieferadresse</div>
+    <div style="font-size:13px;margin-bottom:18px;">
+      <div style="font-weight:700;">${esc(c.name||"")}</div>
+      ${c.street?`<div>${esc(c.street)}</div>`:""}
+      ${(c.zip||c.ort)?`<div>${esc(c.zip||"")} ${esc(c.ort||"")}</div>`:""}
+    </div>`;
+}
+function brandedFooter(){
+  return `<div style="text-align:center;color:${BRAND.soft};font-size:10.5px;margin-top:40px;padding-top:12px;border-top:1px solid ${BRAND.border};">
+    Candle Momente &amp; Co &nbsp;|&nbsp; Hegistrasse 8, 8542 Wiesendangen &nbsp;|&nbsp; candlemomenteco@gmail.com
+  </div>`;
+}
+function brandedItemsTable(items, showPrices){
+  const headCells = showPrices
+    ? `<th style="text-align:left;padding:8px;">Artikel</th><th style="text-align:center;padding:8px;">Menge</th><th style="text-align:center;padding:8px;">Einheit</th><th style="text-align:right;padding:8px;">Preis</th><th style="text-align:right;padding:8px;">Total</th>`
+    : `<th style="text-align:left;padding:8px;">Artikel</th><th style="text-align:center;padding:8px;">Menge</th><th style="text-align:center;padding:8px;">Einheit</th>`;
+  const rows = items.map(it=>{
+    const unit = it.unit || "Stk";
+    return showPrices ? `<tr>
+        <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};">${esc(it.name)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};text-align:center;">${it.qty}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};text-align:center;">${esc(unit)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};text-align:right;">${fmtCHF(it.price)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};text-align:right;">${fmtCHF(it.qty*it.price)}</td>
+      </tr>` : `<tr>
+        <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};">${esc(it.name)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};text-align:center;">${it.qty}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};text-align:center;">${esc(unit)}</td>
+      </tr>`;
+  }).join("");
+  return `<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:18px;">
+    <thead><tr style="background:${BRAND.navy};color:#fff;">${headCells}</tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+function brandedTotals(totals, vatRatePct){
+  return `<div style="display:flex;justify-content:flex-end;margin-bottom:18px;">
+    <div style="width:260px;border:1px solid ${BRAND.border};border-radius:4px;overflow:hidden;font-size:12.5px;">
+      <div style="display:flex;justify-content:space-between;padding:8px 12px;font-weight:700;">
+        <span>Zwischentotal</span><span>${fmtCHF(totals.subtotal)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:6px 12px;color:${BRAND.soft};">
+        <span>MWST-Satz</span><span>${vatRatePct}%</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:6px 12px;color:${BRAND.soft};">
+        <span>MWST-Betrag</span><span>${fmtCHF(totals.vat)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 12px;font-weight:700;font-size:14px;background:${BRAND.totalBg};border-top:1px solid ${BRAND.navy};">
+        <span>Total inkl. MWST</span><span>${fmtCHF(totals.total)}</span>
+      </div>
+    </div>
+  </div>`;
+}
+function brandedSignature(){
+  return `<div style="margin-top:26px;">
+    <div style="font-size:11px;font-weight:700;color:${BRAND.soft};text-transform:uppercase;margin-bottom:6px;">Bemerkungen</div>
+    <div style="border:1px solid ${BRAND.border};border-radius:4px;height:64px;margin-bottom:24px;"></div>
+    <div style="display:flex;gap:16px;">
+      <div style="flex:1;">
+        <div style="font-size:11px;color:${BRAND.soft};margin-bottom:4px;">Ort, Datum</div>
+        <div style="border:1px solid ${BRAND.border};border-radius:4px;height:42px;"></div>
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:11px;color:${BRAND.soft};margin-bottom:4px;">Unterschrift</div>
+        <div style="border:1px solid ${BRAND.border};border-radius:4px;height:42px;"></div>
+      </div>
+    </div>
+  </div>`;
+}
+async function openLieferscheinView(order){
+  if(!order) return;
+  if(!order.lieferscheinNumber){
+    const number = nextLieferscheinNumber();
+    const lsDate = todayISO();
+    await dbUpdate("orders", order.id, {lieferscheinNumber:number, lieferscheinDate:lsDate});
+    order = {...order, lieferscheinNumber:number, lieferscheinDate:lsDate};
+  }
+  const c = customerById(order.customerId) || {};
+  $("#printView").innerHTML = `
+    ${brandedHeader("LIEFERSCHEIN", [["Lieferschein-Nr.", order.lieferscheinNumber], ["Datum", fmtDate(order.lieferscheinDate||todayISO())], ["Bestellung", order.number||""]])}
+    ${brandedCustomerBlock(c)}
+    ${brandedItemsTable(order.items||[], false)}
+    ${brandedSignature()}
+    ${brandedFooter()}
+  `;
+  setTimeout(()=> window.print(), 50);
+}
+
+function customerRevenue(customerId){
+  return state.invoices.filter(i=>i.customerId===customerId && i.paymentStatus==="bezahlt")
+    .reduce((s,i)=> s + invoiceTotals(i).total, 0);
+}
+function nextDocNumber(prefix, collection){
+  const year = new Date().getFullYear();
+  const count = state[collection].filter(x => (x.number||"").startsWith(prefix+"-"+year)).length;
+  return prefix + "-" + year + "-" + String(count+1).padStart(3,"0");
+}
+function nextLieferscheinNumber(){
+  const year = new Date().getFullYear();
+  const count = state.orders.filter(o => (o.lieferscheinNumber||"").startsWith("LS-"+year)).length;
+  return "LS-" + year + "-" + String(count+1).padStart(3,"0");
+}
+function refreshOverdueInvoices(){
+  const today = todayISO();
+  state.invoices.forEach(inv=>{
+    if(inv.paymentStatus === "offen" && inv.dueDate && inv.dueDate < today){
+      dbUpdate("invoices", inv.id, {paymentStatus:"ueberfaellig"});
+    }
+  });
+}
+
+/* ---------------- tabs ---------------- */
+$("#tabs").addEventListener("click", (e)=>{
+  const btn = e.target.closest("button[data-tab]");
+  if(!btn) return;
+  showTab(btn.dataset.tab);
+});
+function showTab(tab){
+  state.currentTab = tab;
+  $$("#tabs button").forEach(b=> b.classList.toggle("active", b.dataset.tab===tab));
+  $$(".view").forEach(v=> v.classList.remove("active"));
+  const map = {dashboard:"view-dashboard", kunden:"view-kunden", bestellungen:"view-bestellungen", artikel:"view-artikel", rechnungen:"view-rechnungen"};
+  $("#"+map[tab]).classList.add("active");
+  renderAll();
+}
+
+/* ---------------- render dispatch ---------------- */
+function renderAll(){
+  refreshOverdueInvoices();
+  if(state.currentTab==="dashboard") renderDashboard();
+  if(state.currentTab==="kunden") renderKundenList();
+  if(state.currentTab==="bestellungen") renderBestellungen();
+  if(state.currentTab==="artikel") renderArtikel();
+  if(state.currentTab==="rechnungen") renderRechnungen();
+  if(document.getElementById("view-kunde-detail").classList.contains("active") && state.currentCustomerId){
+    renderKundeDetail(state.currentCustomerId);
+  }
+}
+
+/* ---------------- DASHBOARD ---------------- */
+function renderDashboard(){
+  $("#dashDate").textContent = new Date().toLocaleDateString('de-CH',{weekday:'long', year:'numeric', month:'long', day:'numeric'});
+
+  const openOrders = state.orders.filter(o=>o.status==="offen" || o.status==="in_bearbeitung");
+  const openDeliveries = state.orders.filter(o=>o.status!=="geliefert" && o.status!=="abgeschlossen");
+  const openInvoices = state.invoices.filter(i=>i.paymentStatus==="offen" || i.paymentStatus==="ueberfaellig");
+  const revenuePaid = state.invoices.filter(i=>i.paymentStatus==="bezahlt").reduce((s,i)=>s+invoiceTotals(i).total,0);
+  const revenueOpen = openInvoices.reduce((s,i)=>s+invoiceTotals(i).total,0);
+
+  const stats = [
+    {label:"Offene Bestellungen", value: openOrders.length, sub: state.orders.length + " total"},
+    {label:"Offene Lieferungen", value: openDeliveries.length, sub:"noch zu liefern"},
+    {label:"Offene Rechnungen", value: openInvoices.length, sub: fmtCHF(revenueOpen)},
+    {label:"Umsatz (bezahlt)", value: fmtCHF(revenuePaid), sub: state.invoices.length + " Rechnungen total"},
+    {label:"Kunden", value: state.customers.length, sub:"aktiv"},
+    {label:"Artikel", value: state.articles.length, sub:"im Sortiment"},
+  ];
+  $("#statGrid").innerHTML = stats.map(s=>`
+    <div class="stat-card">
+      <div class="label">${esc(s.label)}</div>
+      <div class="value">${s.value}</div>
+      <div class="sub">${esc(s.sub)}</div>
+    </div>`).join("");
+
+  $("#dashOpenOrders").innerHTML = openOrders.length ? openOrders.slice(0,6).map(o=>`
+    <div class="mini-row">
+      <span class="name">${esc(o.number||"–")} · ${esc(customerName(o.customerId))}</span>
+      <span class="badge badge-${o.status}">${STATUS_ORDER[o.status]||o.status}</span>
+    </div>`).join("") : `<div class="empty-hint">Keine offenen Bestellungen 🎉</div>`;
+
+  $("#dashOpenDeliveries").innerHTML = openDeliveries.length ? openDeliveries.slice(0,6).map(o=>`
+    <div class="mini-row">
+      <span class="name">${esc(o.number||"–")} · ${esc(customerName(o.customerId))}</span>
+      <span class="amt">${fmtCHF(orderTotal(o))}</span>
+    </div>`).join("") : `<div class="empty-hint">Alles geliefert 🎉</div>`;
+
+  const revByCustomer = {};
+  state.invoices.filter(i=>i.paymentStatus==="bezahlt").forEach(i=>{
+    revByCustomer[i.customerId] = (revByCustomer[i.customerId]||0) + invoiceTotals(i).total;
+  });
+  const topCustomers = Object.entries(revByCustomer).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  $("#dashTopCustomers").innerHTML = topCustomers.length ? topCustomers.map(([cid,amt])=>`
+    <div class="mini-row"><span class="name">${esc(customerName(cid))}</span><span class="amt">${fmtCHF(amt)}</span></div>
+  `).join("") : `<div class="empty-hint">Noch keine bezahlten Rechnungen</div>`;
+
+  const qtyByArticle = {};
+  state.orders.forEach(o=> (o.items||[]).forEach(it=>{
+    qtyByArticle[it.name] = (qtyByArticle[it.name]||0) + (Number(it.qty)||0);
+  }));
+  const topArticles = Object.entries(qtyByArticle).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  $("#dashTopArticles").innerHTML = topArticles.length ? topArticles.map(([name,qty])=>`
+    <div class="mini-row"><span class="name">${esc(name)}</span><span class="amt">${qty} Stk</span></div>
+  `).join("") : `<div class="empty-hint">Noch keine Bestellungen erfasst</div>`;
+}
+
+function customerName(id){
+  const c = customerById(id);
+  return c ? c.name : "Unbekannt";
+}
+
+/* ---------------- KUNDEN ---------------- */
+function renderKundenList(){
+  const q = ($("#kundenSearch").value||"").toLowerCase();
+  const rows = state.customers.filter(c=>{
+    if(!q) return true;
+    return [c.name,c.ort,c.email,c.contact].some(v=> (v||"").toLowerCase().includes(q));
+  }).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+
+  if(!rows.length){
+    $("#kundenTableBody").innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="big">👤</div>Keine Kunden gefunden.</div></td></tr>`;
+    return;
+  }
+  $("#kundenTableBody").innerHTML = rows.map(c=>`
+    <tr class="clickable" data-id="${c.id}">
+      <td><strong>${esc(c.name)}</strong></td>
+      <td>${esc(c.contact||"–")}</td>
+      <td>${esc(c.zip||"")} ${esc(c.ort||"")}</td>
+      <td>${esc(c.phone||c.email||"–")}</td>
+      <td class="num">${fmtCHF(customerRevenue(c.id))}</td>
+    </tr>`).join("");
+  $$("#kundenTableBody tr[data-id]").forEach(tr=>{
+    tr.addEventListener("click", ()=> openKundeDetail(tr.dataset.id));
+  });
+}
+$("#kundenSearch").addEventListener("input", renderKundenList);
+$("#newKundeBtn").addEventListener("click", ()=> openCustomerForm());
+
+function openCustomerForm(customer){
+  const isEdit = !!customer;
+  customer = customer || {name:"",contact:"",street:"",zip:"",ort:"",phone:"",email:"",notes:""};
+  $("#modalTitle").textContent = isEdit ? "Kunde bearbeiten" : "Neuer Kunde";
+  $("#modalBody").innerHTML = `
+    <div class="form-row"><label>Firma / Name *</label><input id="f_name" value="${esc(customer.name)}"></div>
+    <div class="form-row"><label>Ansprechpartner</label><input id="f_contact" value="${esc(customer.contact)}"></div>
+    <div class="form-row"><label>Strasse</label><input id="f_street" value="${esc(customer.street)}"></div>
+    <div class="form-grid2">
+      <div class="form-row"><label>PLZ</label><input id="f_zip" value="${esc(customer.zip)}"></div>
+      <div class="form-row"><label>Ort</label><input id="f_ort" value="${esc(customer.ort)}"></div>
+    </div>
+    <div class="form-grid2">
+      <div class="form-row"><label>Telefon</label><input id="f_phone" value="${esc(customer.phone)}"></div>
+      <div class="form-row"><label>E-Mail</label><input id="f_email" value="${esc(customer.email)}"></div>
+    </div>
+    <div class="form-row"><label>Notizen</label><textarea id="f_notes">${esc(customer.notes)}</textarea></div>
+  `;
+  $("#modalFoot").innerHTML = `
+    ${isEdit ? `<button class="btn btn-danger" id="delBtn" style="margin-right:auto;">Löschen</button>`:""}
+    <button class="btn" id="cancelBtn">Abbrechen</button>
+    <button class="btn btn-primary" id="saveBtn">Speichern</button>
+  `;
+  openModal();
+  $("#cancelBtn").onclick = closeModal;
+  if(isEdit){
+    $("#delBtn").onclick = async ()=>{
+      if(confirm("Diesen Kunden wirklich löschen? Bestellungen/Rechnungen bleiben erhalten, aber ohne Verknüpfung.")){
+        await dbDelete("customers", customer.id);
+        closeModal();
+        showTab("kunden");
+        toast("Kunde gelöscht.");
+      }
+    };
+  }
+  $("#saveBtn").onclick = async ()=>{
+    const name = $("#f_name").value.trim();
+    if(!name){ toast("Bitte einen Namen angeben."); return; }
+    const data = {
+      name, contact:$("#f_contact").value.trim(), street:$("#f_street").value.trim(),
+      zip:$("#f_zip").value.trim(), ort:$("#f_ort").value.trim(),
+      phone:$("#f_phone").value.trim(), email:$("#f_email").value.trim(),
+      notes:$("#f_notes").value.trim(),
+    };
+    if(isEdit){
+      await dbUpdate("customers", customer.id, data);
+      toast("Kunde aktualisiert.");
+    }else{
+      data.createdAt = new Date().toISOString();
+      const id = await dbAdd("customers", data);
+      toast("Kunde angelegt.");
+      if(id){ closeModal(); openKundeDetail(id); return; }
+    }
+    closeModal();
+  };
+}
+
+/* ---------------- KUNDE DETAIL ---------------- */
+function openKundeDetail(id){
+  state.currentCustomerId = id;
+  $$(".view").forEach(v=>v.classList.remove("active"));
+  $("#view-kunde-detail").classList.add("active");
+  renderKundeDetail(id);
+}
+$("#backToKunden").addEventListener("click", ()=>{ state.currentCustomerId=null; showTab("kunden"); });
+
+function renderKundeDetail(id){
+  const c = customerById(id);
+  if(!c){ showTab("kunden"); return; }
+  const orders = state.orders.filter(o=>o.customerId===id).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const invoices = state.invoices.filter(i=>i.customerId===id).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const tasks = state.tasks.filter(t=>t.customerId===id).sort((a,b)=>(a.done?1:0)-(b.done?1:0) || (a.dueDate||"").localeCompare(b.dueDate||""));
+  const files = (c.files||[]);
+
+  $("#kdInfoCard").innerHTML = `
+    <h3>${esc(c.name)}</h3>
+    ${c.contact?`<div class="muted">${esc(c.contact)}</div>`:""}
+    <div style="height:6px;"></div>
+    ${c.street?`<div>${esc(c.street)}</div>`:""}
+    ${(c.zip||c.ort)?`<div>${esc(c.zip)} ${esc(c.ort)}</div>`:""}
+    ${c.phone?`<div style="margin-top:6px;">📞 ${esc(c.phone)}</div>`:""}
+    ${c.email?`<div>✉️ ${esc(c.email)}</div>`:""}
+    ${c.notes?`<div class="muted" style="margin-top:10px;white-space:pre-wrap;">${esc(c.notes)}</div>`:""}
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-sm" id="kdEditBtn">Bearbeiten</button>
+      <button class="btn btn-sm btn-primary" id="kdNewOrderBtn">+ Bestellung</button>
+    </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+      <div class="label" style="font-size:11px;color:var(--text-soft);font-weight:700;text-transform:uppercase;">Umsatz (bezahlt)</div>
+      <div style="font-size:20px;font-weight:700;color:var(--navy);">${fmtCHF(customerRevenue(id))}</div>
+    </div>
+  `;
+  $("#kdEditBtn").onclick = ()=> openCustomerForm(c);
+  $("#kdNewOrderBtn").onclick = ()=> openOrderForm(null, id);
+
+  $("#kdOrders").innerHTML = orders.length ? orders.map(o=>`
+    <tr class="clickable" data-order="${o.id}">
+      <td>${esc(o.number)}</td><td>${fmtDate(o.date)}</td>
+      <td class="num">${fmtCHF(orderTotal(o))}</td>
+      <td><span class="badge badge-${o.status}">${STATUS_ORDER[o.status]}</span></td>
+    </tr>`).join("") : `<tr><td class="empty-hint">Noch keine Bestellungen</td></tr>`;
+  $$("#kdOrders tr[data-order]").forEach(tr=> tr.addEventListener("click", ()=> openOrderForm(orderById(tr.dataset.order))));
+
+  $("#kdInvoices").innerHTML = invoices.length ? invoices.map(i=>`
+    <tr class="clickable" data-inv="${i.id}">
+      <td>${esc(i.number)}</td><td>${fmtDate(i.date)}</td>
+      <td class="num">${fmtCHF(invoiceTotals(i).total)}</td>
+      <td><span class="badge badge-${i.paymentStatus}">${STATUS_PAY[i.paymentStatus]}</span></td>
+    </tr>`).join("") : `<tr><td class="empty-hint">Noch keine Rechnungen</td></tr>`;
+  $$("#kdInvoices tr[data-inv]").forEach(tr=> tr.addEventListener("click", ()=> openInvoiceView(state.invoices.find(i=>i.id===tr.dataset.inv))));
+
+  $("#kdNotes").innerHTML = tasks.length ? tasks.map(t=>`
+    <div class="note-item ${t.done?'done':''}">
+      <div class="meta"><span>${esc(t.type||"Notiz")}${t.dueDate? " · fällig " + fmtDate(t.dueDate):""}</span>
+      <span style="display:flex;gap:8px;">
+        <a href="#" data-toggle="${t.id}" style="color:var(--accent);text-decoration:none;">${t.done?"↺ offen":"✓ erledigt"}</a>
+        <a href="#" data-del="${t.id}" style="color:var(--red);text-decoration:none;">✕</a>
+      </span></div>
+      <div>${esc(t.text)}</div>
+    </div>`).join("") : `<div class="empty-hint">Keine Notizen oder Aufgaben</div>`;
+  $$("#kdNotes [data-toggle]").forEach(a=> a.addEventListener("click", async (e)=>{
+    e.preventDefault();
+    const t = state.tasks.find(x=>x.id===a.dataset.toggle);
+    await dbUpdate("tasks", t.id, {done: !t.done});
+  }));
+  $$("#kdNotes [data-del]").forEach(a=> a.addEventListener("click", async (e)=>{
+    e.preventDefault();
+    if(confirm("Notiz löschen?")) await dbDelete("tasks", a.dataset.del);
+  }));
+
+  $("#kdFiles").innerHTML = files.length ? files.map(f=>`
+    <div class="file-row">
+      <a href="${esc(f.url)}" target="_blank">📄 ${esc(f.name)}</a>
+      <a href="#" data-delfile="${esc(f.id)}" style="color:var(--red);text-decoration:none;">✕</a>
+    </div>`).join("") : `<div class="empty-hint">Keine Dokumente abgelegt</div>`;
+  $$("#kdFiles [data-delfile]").forEach(a=> a.addEventListener("click", async (e)=>{
+    e.preventDefault();
+    if(!confirm("Dokument entfernen?")) return;
+    const removed = files.find(f=>f.id===a.dataset.delfile);
+    const newFiles = files.filter(f=>f.id!==a.dataset.delfile);
+    await dbUpdate("customers", id, {files:newFiles});
+    if(removed && removed.path){ db.storage.from("documents").remove([removed.path]).catch(()=>{}); }
+  }));
+}
+
+$("#kdAddNoteBtn").addEventListener("click", ()=>{
+  const cid = state.currentCustomerId;
+  $("#modalTitle").textContent = "Notiz / Aufgabe";
+  $("#modalBody").innerHTML = `
+    <div class="form-row"><label>Typ</label>
+      <select id="t_type"><option>Notiz</option><option>Aufgabe</option><option>Rückruf</option><option>Termin</option></select>
+    </div>
+    <div class="form-row"><label>Text *</label><textarea id="t_text"></textarea></div>
+    <div class="form-row"><label>Fällig am (optional)</label><input type="date" id="t_due"></div>
+  `;
+  $("#modalFoot").innerHTML = `<button class="btn" id="cancelBtn">Abbrechen</button><button class="btn btn-primary" id="saveBtn">Speichern</button>`;
+  openModal();
+  $("#cancelBtn").onclick = closeModal;
+  $("#saveBtn").onclick = async ()=>{
+    const text = $("#t_text").value.trim();
+    if(!text){ toast("Bitte einen Text angeben."); return; }
+    await dbAdd("tasks", {customerId:cid, type:$("#t_type").value, text, dueDate:$("#t_due").value||null, done:false, createdAt:new Date().toISOString()});
+    closeModal();
+    toast("Gespeichert.");
+  };
+});
+
+$("#kdFileInput").addEventListener("change", async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    const path = state.currentCustomerId + "/" + Date.now() + "_" + file.name.replace(/[^a-zA-Z0-9_.-]/g,"_");
+    const { error: upErr } = await db.storage.from("documents").upload(path, file);
+    if(upErr) throw upErr;
+    const { data: pub } = db.storage.from("documents").getPublicUrl(path);
+    const c = customerById(state.currentCustomerId);
+    const files = (c.files||[]).concat([{id:uid(), name:file.name, url:pub.publicUrl, path}]);
+    await dbUpdate("customers", c.id, {files});
+    toast("Datei hinzugefügt.");
+  }catch(err){
+    toast("Upload fehlgeschlagen. Ist der Storage-Bucket 'documents' angelegt?");
+  }
+  e.target.value = "";
+});
+
+/* ---------------- BESTELLUNGEN ---------------- */
+function renderBestellungen(){
+  const q = ($("#bestellungenSearch").value||"").toLowerCase();
+  const statusF = $("#bestellungenStatusFilter").value;
+  let rows = state.orders.filter(o=>{
+    if(statusF && o.status!==statusF) return false;
+    if(!q) return true;
+    return (o.number||"").toLowerCase().includes(q) || customerName(o.customerId).toLowerCase().includes(q);
+  }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+  if(!rows.length){
+    $("#bestellungenTableBody").innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="big">📦</div>Keine Bestellungen gefunden.</div></td></tr>`;
+    return;
+  }
+  $("#bestellungenTableBody").innerHTML = rows.map(o=>`
+    <tr>
+      <td class="clickable" data-open="${o.id}"><strong>${esc(o.number)}</strong></td>
+      <td class="clickable" data-open="${o.id}">${esc(customerName(o.customerId))}</td>
+      <td class="clickable" data-open="${o.id}">${fmtDate(o.date)}</td>
+      <td class="num clickable" data-open="${o.id}">${fmtCHF(orderTotal(o))}</td>
+      <td>
+        <select class="status-select badge-${o.status}" data-statusof="${o.id}">
+          ${Object.entries(STATUS_ORDER).map(([k,v])=>`<option value="${k}" ${o.status===k?"selected":""}>${v}</option>`).join("")}
+        </select>
+      </td>
+      <td>
+        <div style="display:flex;gap:6px;justify-content:flex-end;">
+          <button class="btn btn-sm" data-mkls="${o.id}">Lieferschein</button>
+          ${o.invoiceId ? `<span class="badge" style="background:var(--beige);">verrechnet</span>` : `<button class="btn btn-sm" data-mkinv="${o.id}">Rechnung erstellen</button>`}
+        </div>
+      </td>
+    </tr>`).join("");
+
+  $$("#bestellungenTableBody [data-open]").forEach(td=> td.addEventListener("click", ()=> openOrderForm(orderById(td.dataset.open))));
+  $$("#bestellungenTableBody [data-statusof]").forEach(sel=>{
+    sel.addEventListener("change", async ()=>{
+      await dbUpdate("orders", sel.dataset.statusof, {status: sel.value});
+      toast("Status aktualisiert.");
+    });
+  });
+  $$("#bestellungenTableBody [data-mkls]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{ e.stopPropagation(); openLieferscheinView(orderById(btn.dataset.mkls)); });
+  });
+  $$("#bestellungenTableBody [data-mkinv]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{ e.stopPropagation(); createInvoiceFromOrder(orderById(btn.dataset.mkinv)); });
+  });
+}
+$("#bestellungenSearch").addEventListener("input", renderBestellungen);
+$("#bestellungenStatusFilter").addEventListener("change", renderBestellungen);
+$("#newBestellungBtn").addEventListener("click", ()=> openOrderForm());
+
+function openOrderForm(order, presetCustomerId){
+  const isEdit = !!order;
+  order = order || {customerId:presetCustomerId||"", date:todayISO(), status:"offen", items:[], notes:""};
+  let items = (order.items||[]).map(it=>({...it}));
+  if(!items.length) items.push({articleId:"",name:"",qty:1,price:0});
+
+  $("#modalTitle").textContent = isEdit ? ("Bestellung " + order.number) : "Neue Bestellung";
+  $("#modalBody").innerHTML = `
+    <div class="form-row"><label>Kunde *</label>
+      <select id="o_customer">
+        <option value="">– auswählen –</option>
+        ${state.customers.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(c=>`<option value="${c.id}" ${order.customerId===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-grid2">
+      <div class="form-row"><label>Datum</label><input type="date" id="o_date" value="${order.date||todayISO()}"></div>
+      <div class="form-row"><label>Status</label>
+        <select id="o_status">${Object.entries(STATUS_ORDER).map(([k,v])=>`<option value="${k}" ${order.status===k?"selected":""}>${v}</option>`).join("")}</select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Artikel</label>
+      <div class="line-items" id="o_lines">
+        <div class="line-item-row head"><div>Artikel</div><div>Menge</div><div>Preis</div><div>Total</div><div></div></div>
+      </div>
+      <button class="btn btn-sm add-line-btn" id="o_addLine">+ Position</button>
+    </div>
+    <div class="form-row"><label>Notizen</label><textarea id="o_notes">${esc(order.notes||"")}</textarea></div>
+    <div style="text-align:right;font-weight:700;font-size:15px;margin-top:6px;">Total: <span id="o_total">CHF 0.00</span></div>
+  `;
+  $("#modalFoot").innerHTML = `
+    ${isEdit ? `<button class="btn btn-danger" id="delBtn" style="margin-right:auto;">Löschen</button>` : ""}
+    ${isEdit ? `<button class="btn" id="lsBtn">📦 Lieferschein</button>` : ""}
+    <button class="btn" id="cancelBtn">Abbrechen</button>
+    <button class="btn btn-primary" id="saveBtn">Speichern</button>
+  `;
+  openModal();
+  if(isEdit){
+    $("#lsBtn").onclick = ()=> openLieferscheinView(order);
+  }
+
+  function renderLines(){
+    const wrap = $("#o_lines");
+    wrap.querySelectorAll(".line-item-row:not(.head)").forEach(el=>el.remove());
+    items.forEach((it,idx)=>{
+      const row = document.createElement("div");
+      row.className = "line-item-row";
+      row.innerHTML = `
+        <select data-idx="${idx}" class="li-article">
+          <option value="">– frei –</option>
+          ${state.articles.map(a=>`<option value="${a.id}" ${it.articleId===a.id?"selected":""}>${esc(a.name)}</option>`).join("")}
+        </select>
+        <input type="number" min="0" step="1" class="li-qty" data-idx="${idx}" value="${it.qty}">
+        <input type="number" min="0" step="0.05" class="li-price" data-idx="${idx}" value="${it.price}">
+        <div class="num" style="font-size:13px;">${fmtCHF((Number(it.qty)||0)*(Number(it.price)||0))}</div>
+        <button class="rm-line" data-idx="${idx}">✕</button>
+      `;
+      wrap.appendChild(row);
+    });
+    if(!items.length){
+      $("#o_customLineHint");
+    }
+    wrap.querySelectorAll(".li-article").forEach(sel=> sel.addEventListener("change", ()=>{
+      const idx = +sel.dataset.idx;
+      const art = articleById(sel.value);
+      if(art){ items[idx].articleId = art.id; items[idx].name = art.name; items[idx].price = art.price; }
+      else { items[idx].articleId = ""; }
+      renderLines();
+    }));
+    wrap.querySelectorAll(".li-qty").forEach(inp=> inp.addEventListener("input", ()=>{ items[+inp.dataset.idx].qty = parseFloat(inp.value)||0; updateTotal(); }));
+    wrap.querySelectorAll(".li-price").forEach(inp=> inp.addEventListener("input", ()=>{ items[+inp.dataset.idx].price = parseFloat(inp.value)||0; updateTotal(); }));
+    wrap.querySelectorAll(".rm-line").forEach(btn=> btn.addEventListener("click", ()=>{ items.splice(+btn.dataset.idx,1); renderLines(); updateTotal(); }));
+    updateTotal();
+  }
+  function updateTotal(){
+    const total = items.reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.price)||0), 0);
+    $("#o_total").textContent = fmtCHF(total);
+  }
+  $("#o_addLine").addEventListener("click", ()=>{ items.push({articleId:"",name:"",qty:1,price:0}); renderLines(); });
+  renderLines();
+
+  $("#cancelBtn").onclick = closeModal;
+  if(isEdit){
+    $("#delBtn").onclick = async ()=>{
+      if(confirm("Diese Bestellung wirklich löschen?")){
+        await dbDelete("orders", order.id);
+        closeModal();
+        toast("Bestellung gelöscht.");
+        if($("#view-kunde-detail").classList.contains("active")) renderKundeDetail(state.currentCustomerId);
+      }
+    };
+  }
+  $("#saveBtn").onclick = async ()=>{
+    const customerId = $("#o_customer").value;
+    if(!customerId){ toast("Bitte einen Kunden wählen."); return; }
+    const cleanItems = items.filter(it=> (it.name||articleById(it.articleId)?.name) && (Number(it.qty)>0));
+    if(!cleanItems.length){ toast("Bitte mindestens eine Position mit Menge angeben."); return; }
+    const data = {
+      customerId, date:$("#o_date").value||todayISO(), status:$("#o_status").value,
+      items: cleanItems.map(it=>({articleId:it.articleId||null, name:it.name||articleById(it.articleId)?.name||"Artikel", qty:Number(it.qty)||0, price:Number(it.price)||0})),
+      notes: $("#o_notes").value.trim(),
+    };
+    if(isEdit){
+      await dbUpdate("orders", order.id, data);
+      toast("Bestellung aktualisiert.");
+    }else{
+      data.number = nextDocNumber("B","orders");
+      data.createdAt = new Date().toISOString();
+      await dbAdd("orders", data);
+      toast("Bestellung erfasst.");
+    }
+    closeModal();
+    if($("#view-kunde-detail").classList.contains("active")) renderKundeDetail(state.currentCustomerId);
+  };
+}
+
+/* ---------------- ARTIKEL ---------------- */
+function articleSoldQty(articleId, name){
+  let qty = 0;
+  state.orders.forEach(o=> (o.items||[]).forEach(it=>{
+    if((articleId && it.articleId===articleId) || (!articleId && it.name===name)) qty += Number(it.qty)||0;
+  }));
+  return qty;
+}
+function renderArtikel(){
+  const q = ($("#artikelSearch").value||"").toLowerCase();
+  const rows = state.articles.filter(a=> !q || (a.name||"").toLowerCase().includes(q) || (a.category||"").toLowerCase().includes(q))
+    .sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  if(!rows.length){
+    $("#artikelTableBody").innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="big">🕯️</div>Keine Artikel gefunden.</div></td></tr>`;
+    return;
+  }
+  $("#artikelTableBody").innerHTML = rows.map(a=>`
+    <tr class="clickable" data-id="${a.id}">
+      <td><strong>${esc(a.name)}</strong></td>
+      <td>${esc(a.category||"–")}</td>
+      <td class="num">${fmtCHF(a.price)}</td>
+      <td>${esc(a.unit||"Stk")}</td>
+      <td class="num">${articleSoldQty(a.id)}</td>
+      <td></td>
+    </tr>`).join("");
+  $$("#artikelTableBody tr[data-id]").forEach(tr=> tr.addEventListener("click", ()=> openArticleForm(state.articles.find(a=>a.id===tr.dataset.id))));
+}
+$("#artikelSearch").addEventListener("input", renderArtikel);
+$("#newArtikelBtn").addEventListener("click", ()=> openArticleForm());
+
+function openArticleForm(article){
+  const isEdit = !!article;
+  article = article || {name:"",category:"",price:0,unit:"Stk"};
+  $("#modalTitle").textContent = isEdit ? "Artikel bearbeiten" : "Neuer Artikel";
+  $("#modalBody").innerHTML = `
+    <div class="form-row"><label>Bezeichnung *</label><input id="a_name" value="${esc(article.name)}"></div>
+    <div class="form-grid3">
+      <div class="form-row"><label>Kategorie</label><input id="a_category" value="${esc(article.category)}"></div>
+      <div class="form-row"><label>Preis (CHF)</label><input type="number" step="0.05" id="a_price" value="${article.price}"></div>
+      <div class="form-row"><label>Einheit</label><input id="a_unit" value="${esc(article.unit||"Stk")}"></div>
+    </div>
+  `;
+  $("#modalFoot").innerHTML = `
+    ${isEdit ? `<button class="btn btn-danger" id="delBtn" style="margin-right:auto;">Löschen</button>`:""}
+    <button class="btn" id="cancelBtn">Abbrechen</button>
+    <button class="btn btn-primary" id="saveBtn">Speichern</button>
+  `;
+  openModal();
+  $("#cancelBtn").onclick = closeModal;
+  if(isEdit){
+    $("#delBtn").onclick = async ()=>{
+      if(confirm("Diesen Artikel wirklich löschen?")){
+        await dbDelete("articles", article.id);
+        closeModal();
+        toast("Artikel gelöscht.");
+      }
+    };
+  }
+  $("#saveBtn").onclick = async ()=>{
+    const name = $("#a_name").value.trim();
+    if(!name){ toast("Bitte eine Bezeichnung angeben."); return; }
+    const data = {name, category:$("#a_category").value.trim(), price:parseFloat($("#a_price").value)||0, unit:$("#a_unit").value.trim()||"Stk"};
+    if(isEdit) await dbUpdate("articles", article.id, data);
+    else await dbAdd("articles", data);
+    closeModal();
+    toast("Gespeichert.");
+  };
+}
+
+/* ---------------- RECHNUNGEN ---------------- */
+function renderRechnungen(){
+  const q = ($("#rechnungenSearch").value||"").toLowerCase();
+  const statusF = $("#rechnungenStatusFilter").value;
+  let rows = state.invoices.filter(i=>{
+    if(statusF && i.paymentStatus!==statusF) return false;
+    if(!q) return true;
+    return (i.number||"").toLowerCase().includes(q) || customerName(i.customerId).toLowerCase().includes(q);
+  }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+  if(!rows.length){
+    $("#rechnungenTableBody").innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="big">🧾</div>Keine Rechnungen gefunden.</div></td></tr>`;
+    return;
+  }
+  $("#rechnungenTableBody").innerHTML = rows.map(i=>`
+    <tr>
+      <td class="clickable" data-open="${i.id}"><strong>${esc(i.number)}</strong></td>
+      <td class="clickable" data-open="${i.id}">${esc(customerName(i.customerId))}</td>
+      <td class="clickable" data-open="${i.id}">${fmtDate(i.date)}</td>
+      <td class="num clickable" data-open="${i.id}">${fmtCHF(invoiceTotals(i).total)}</td>
+      <td>
+        <select class="status-select badge-${i.paymentStatus}" data-payof="${i.id}">
+          ${Object.entries(STATUS_PAY).map(([k,v])=>`<option value="${k}" ${i.paymentStatus===k?"selected":""}>${v}</option>`).join("")}
+        </select>
+      </td>
+      <td><button class="btn btn-sm" data-view="${i.id}">Ansehen</button></td>
+    </tr>`).join("");
+  $$("#rechnungenTableBody [data-open]").forEach(td=> td.addEventListener("click", ()=> openInvoiceView(state.invoices.find(i=>i.id===td.dataset.open))));
+  $$("#rechnungenTableBody [data-view]").forEach(btn=> btn.addEventListener("click", (e)=>{ e.stopPropagation(); openInvoiceView(state.invoices.find(i=>i.id===btn.dataset.view)); }));
+  $$("#rechnungenTableBody [data-payof]").forEach(sel=>{
+    sel.addEventListener("change", async ()=>{
+      const data = {paymentStatus: sel.value};
+      if(sel.value==="bezahlt") data.paidDate = todayISO();
+      await dbUpdate("invoices", sel.dataset.payof, data);
+      toast("Zahlungsstatus aktualisiert.");
+    });
+  });
+}
+$("#rechnungenSearch").addEventListener("input", renderRechnungen);
+$("#rechnungenStatusFilter").addEventListener("change", renderRechnungen);
+
+async function createInvoiceFromOrder(order){
+  if(!order) return;
+  const c = customerById(order.customerId);
+  const data = {
+    orderId: order.id, customerId: order.customerId,
+    number: nextDocNumber("RE","invoices"),
+    date: todayISO(),
+    dueDate: new Date(Date.now()+30*86400000).toISOString().slice(0,10),
+    items: (order.items||[]).map(it=>({name:it.name, qty:it.qty, price:it.price})),
+    vatRate: VAT_RATE,
+    paymentStatus: "offen",
+    createdAt: new Date().toISOString(),
+  };
+  const id = await dbAdd("invoices", data);
+  if(id){
+    await dbUpdate("orders", order.id, {invoiceId:id});
+    toast("Rechnung " + data.number + " erstellt.");
+    openInvoiceView({id, ...data});
+  }
+}
+
+function openInvoiceView(inv){
+  if(!inv) return;
+  const c = customerById(inv.customerId) || {};
+  const totals = invoiceTotals(inv);
+  $("#modalTitle").textContent = "Rechnung " + inv.number;
+  $("#modalBody").innerHTML = `
+    <div style="display:flex;justify-content:space-between;margin-bottom:14px;">
+      <div>
+        <div style="font-weight:700;">${esc(c.name||"")}</div>
+        <div class="muted" style="color:var(--text-soft);font-size:12.5px;">${esc(c.street||"")}<br>${esc(c.zip||"")} ${esc(c.ort||"")}</div>
+      </div>
+      <div style="text-align:right;font-size:12.5px;color:var(--text-soft);">
+        Datum: ${fmtDate(inv.date)}<br>
+        Fällig: ${fmtDate(inv.dueDate)}<br>
+        Status: <span class="badge badge-${inv.paymentStatus}">${STATUS_PAY[inv.paymentStatus]}</span>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Artikel</th><th class="num">Menge</th><th class="num">Preis</th><th class="num">Total</th></tr></thead>
+      <tbody>
+        ${(inv.items||[]).map(it=>`<tr><td>${esc(it.name)}</td><td class="num">${it.qty}</td><td class="num">${fmtCHF(it.price)}</td><td class="num">${fmtCHF(it.qty*it.price)}</td></tr>`).join("")}
+      </tbody>
+    </table>
+    <div style="margin-top:12px;text-align:right;font-size:13px;">
+      <div>Zwischentotal: ${fmtCHF(totals.subtotal)}</div>
+      <div>MWST (${(totals.vat/Math.max(totals.subtotal,0.0001)*100).toFixed(1)}%): ${fmtCHF(totals.vat)}</div>
+      <div style="font-weight:700;font-size:16px;margin-top:4px;">Total: ${fmtCHF(totals.total)}</div>
+    </div>
+  `;
+  $("#modalFoot").innerHTML = `
+    <button class="btn btn-danger" id="delInvBtn" style="margin-right:auto;">Löschen</button>
+    <button class="btn" id="printBtn">🖨️ Drucken</button>
+    <button class="btn btn-primary" id="closeInvBtn">Schliessen</button>
+  `;
+  openModal();
+  $("#closeInvBtn").onclick = closeModal;
+  $("#delInvBtn").onclick = async ()=>{
+    if(confirm("Diese Rechnung wirklich löschen?")){
+      await dbDelete("invoices", inv.id);
+      closeModal();
+      toast("Rechnung gelöscht.");
+    }
+  };
+  $("#printBtn").onclick = ()=>{
+    const vatPct = ((inv.vatRate!=null?inv.vatRate:VAT_RATE)*100).toFixed(1);
+    $("#printView").innerHTML = `
+      ${brandedHeader("RECHNUNG", [["Rechnung-Nr.", inv.number], ["Datum", fmtDate(inv.date)], ["Fällig", fmtDate(inv.dueDate)]])}
+      ${brandedCustomerBlock(c)}
+      ${brandedItemsTable(inv.items||[], true)}
+      ${brandedTotals(totals, vatPct)}
+      <div style="font-size:11px;color:${BRAND.navy};margin-bottom:6px;"><strong>Zahlungskonditionen:</strong><br>Zahlbar innert 30 Tagen netto.</div>
+      ${brandedFooter()}
+    `;
+    setTimeout(()=> window.print(), 50);
+  };
+}
+
+/* ---------------- MODAL ---------------- */
+function openModal(){ $("#modalBackdrop").classList.add("open"); }
+function closeModal(){ $("#modalBackdrop").classList.remove("open"); }
+$("#modalCloseBtn").addEventListener("click", closeModal);
+$("#modalBackdrop").addEventListener("click", (e)=>{ if(e.target.id==="modalBackdrop") closeModal(); });
+document.addEventListener("keydown", (e)=>{ if(e.key==="Escape") closeModal(); });
+
+/* ---------------- global search ---------------- */
+$("#globalSearchBtn").addEventListener("click", ()=>{
+  const q = prompt("Suche nach Kunde, Bestellung, Artikel oder Rechnung:");
+  if(!q) return;
+  const ql = q.toLowerCase();
+  const cust = state.customers.find(c=>(c.name||"").toLowerCase().includes(ql));
+  if(cust){ showTab("kunden"); openKundeDetail(cust.id); return; }
+  const ord = state.orders.find(o=>(o.number||"").toLowerCase().includes(ql));
+  if(ord){ showTab("bestellungen"); $("#bestellungenSearch").value=q; renderBestellungen(); return; }
+  const inv = state.invoices.find(i=>(i.number||"").toLowerCase().includes(ql));
+  if(inv){ showTab("rechnungen"); $("#rechnungenSearch").value=q; renderRechnungen(); return; }
+  toast("Nichts gefunden für: " + q);
+});
+
+/* ---------------- boot ---------------- */
+initDb();
+// safety: if db capability never resolves, stop showing the spinner forever
+setTimeout(()=>{ if(!allReady()) { $("#loadingScreen").classList.add("hidden"); renderAll(); } }, 9000);
+
+})();
+</script>
+</body>
+</html>
