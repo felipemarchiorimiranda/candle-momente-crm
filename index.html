@@ -275,6 +275,7 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
     <button data-tab="bestellungen">Bestellungen</button>
     <button data-tab="artikel">Artikel</button>
     <button data-tab="rechnungen">Rechnungen</button>
+    <button data-tab="angebote">Angebote</button>
     <button data-tab="ausgaben">Ausgaben</button>
     <button data-tab="statistik">Statistik</button>
   </nav>
@@ -352,6 +353,28 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
             <div id="kdFiles"></div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ANGEBOTE -->
+    <section class="view" id="view-angebote">
+      <h2 class="view-title">Angebote</h2>
+      <div class="toolbar">
+        <input class="search-input" id="angeboteSearch" placeholder="Kunde oder Angebotsnr. suchen …">
+        <select class="filter" id="angeboteStatusFilter">
+          <option value="">Alle Status</option>
+          <option value="entwurf">Entwurf</option>
+          <option value="gesendet">Gesendet</option>
+          <option value="angenommen">Angenommen</option>
+          <option value="abgelehnt">Abgelehnt</option>
+        </select>
+        <button class="btn btn-primary" id="newAngebotBtn">+ Neues Angebot</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Nr.</th><th>Kunde</th><th>Datum</th><th>Gültig bis</th><th class="num">Betrag</th><th>Status</th><th></th></tr></thead>
+          <tbody id="angeboteTableBody"></tbody>
+        </table>
       </div>
     </section>
 
@@ -491,6 +514,8 @@ const uid = () => Math.random().toString(36).slice(2,10);
 
 const STATUS_ORDER = {offen:"Offen", in_bearbeitung:"In Bearbeitung", geliefert:"Geliefert", abgeschlossen:"Abgeschlossen"};
 const STATUS_PAY = {offen:"Offen", bezahlt:"Bezahlt", ueberfaellig:"Überfällig"};
+const STATUS_QUOTE = {entwurf:"Entwurf", gesendet:"Gesendet", angenommen:"Angenommen", abgelehnt:"Abgelehnt"};
+const QUOTE_BADGE_CLASS = {entwurf:"offen", gesendet:"in_bearbeitung", angenommen:"geliefert", abgelehnt:"ueberfaellig"};
 const VAT_RATE = 0.081;
 
 function toast(msg){
@@ -509,7 +534,8 @@ const state = {
   invoices: [],
   tasks: [],
   expenses: [],
-  ready: {customers:false, articles:false, orders:false, invoices:false, tasks:false, expenses:false},
+  quotes: [],
+  ready: {customers:false, articles:false, orders:false, invoices:false, tasks:false, expenses:false, quotes:false},
   currentTab: "dashboard",
   currentCustomerId: null,
 };
@@ -538,6 +564,7 @@ const COLMAP = {
   invoices:  {number:"number", orderId:"order_id", customerId:"customer_id", date:"date", dueDate:"due_date", items:"items", vatRate:"vat_rate", paymentStatus:"payment_status", paidDate:"paid_date", createdAt:"created_at"},
   tasks:     {customerId:"customer_id", type:"type", text:"text", dueDate:"due_date", done:"done", createdAt:"created_at"},
   expenses:  {date:"date", category:"category", description:"description", amount:"amount", createdAt:"created_at"},
+  quotes:    {number:"number", customerId:"customer_id", date:"date", validUntil:"valid_until", status:"status", items:"items", notes:"notes", orderId:"order_id", createdAt:"created_at"},
 };
 function toDb(col, data){
   const map = COLMAP[col];
@@ -563,7 +590,7 @@ async function initDb(){
     return;
   }
   db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  await Promise.all(["customers","articles","orders","invoices","tasks","expenses"].map(col=> fetchAll(col)));
+  await Promise.all(["customers","articles","orders","invoices","tasks","expenses","quotes"].map(col=> fetchAll(col)));
   subscribeRealtime();
 }
 
@@ -589,6 +616,7 @@ function subscribeRealtime(){
     .on("postgres_changes", {event:"*", schema:"public", table:"invoices"},  ()=> fetchAll("invoices").then(renderAll))
     .on("postgres_changes", {event:"*", schema:"public", table:"tasks"},     ()=> fetchAll("tasks").then(renderAll))
     .on("postgres_changes", {event:"*", schema:"public", table:"expenses"},  ()=> fetchAll("expenses").then(renderAll))
+    .on("postgres_changes", {event:"*", schema:"public", table:"quotes"},    ()=> fetchAll("quotes").then(renderAll))
     .subscribe();
 }
 
@@ -784,7 +812,7 @@ function showTab(tab){
   state.currentTab = tab;
   $$("#tabs button").forEach(b=> b.classList.toggle("active", b.dataset.tab===tab));
   $$(".view").forEach(v=> v.classList.remove("active"));
-  const map = {dashboard:"view-dashboard", kunden:"view-kunden", bestellungen:"view-bestellungen", artikel:"view-artikel", rechnungen:"view-rechnungen", ausgaben:"view-ausgaben", statistik:"view-statistik"};
+  const map = {dashboard:"view-dashboard", kunden:"view-kunden", angebote:"view-angebote", bestellungen:"view-bestellungen", artikel:"view-artikel", rechnungen:"view-rechnungen", ausgaben:"view-ausgaben", statistik:"view-statistik"};
   $("#"+map[tab]).classList.add("active");
   renderAll();
 }
@@ -794,6 +822,7 @@ function renderAll(){
   refreshOverdueInvoices();
   if(state.currentTab==="dashboard") renderDashboard();
   if(state.currentTab==="kunden") renderKundenList();
+  if(state.currentTab==="angebote") renderAngebote();
   if(state.currentTab==="bestellungen") renderBestellungen();
   if(state.currentTab==="artikel") renderArtikel();
   if(state.currentTab==="rechnungen") renderRechnungen();
@@ -811,12 +840,14 @@ function renderDashboard(){
   const openOrders = state.orders.filter(o=>o.status==="offen" || o.status==="in_bearbeitung");
   const openDeliveries = state.orders.filter(o=>o.status!=="geliefert" && o.status!=="abgeschlossen");
   const openInvoices = state.invoices.filter(i=>i.paymentStatus==="offen" || i.paymentStatus==="ueberfaellig");
+  const openQuotes = state.quotes.filter(q=>q.status==="entwurf" || q.status==="gesendet");
   const revenuePaid = state.invoices.filter(i=>i.paymentStatus==="bezahlt").reduce((s,i)=>s+invoiceTotals(i).total,0);
   const revenueOpen = openInvoices.reduce((s,i)=>s+invoiceTotals(i).total,0);
   const totalExpense = state.expenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
   const profit = revenuePaid - totalExpense;
 
   const stats = [
+    {label:"Offene Angebote", value: openQuotes.length, sub: state.quotes.length + " total"},
     {label:"Offene Bestellungen", value: openOrders.length, sub: state.orders.length + " total"},
     {label:"Offene Lieferungen", value: openDeliveries.length, sub:"noch zu liefern"},
     {label:"Offene Rechnungen", value: openInvoices.length, sub: fmtCHF(revenueOpen)},
@@ -1286,6 +1317,202 @@ function openOrderForm(order, presetCustomerId){
     closeModal();
     if($("#view-kunde-detail").classList.contains("active")) renderKundeDetail(state.currentCustomerId);
   };
+}
+
+/* ---------------- ANGEBOTE ---------------- */
+function renderAngebote(){
+  const q = ($("#angeboteSearch").value||"").toLowerCase();
+  const statusF = $("#angeboteStatusFilter").value;
+  let rows = state.quotes.filter(o=>{
+    if(statusF && o.status!==statusF) return false;
+    if(!q) return true;
+    return (o.number||"").toLowerCase().includes(q) || customerName(o.customerId).toLowerCase().includes(q);
+  }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+  if(!rows.length){
+    $("#angeboteTableBody").innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="big">📝</div>Keine Angebote gefunden.</div></td></tr>`;
+    return;
+  }
+  $("#angeboteTableBody").innerHTML = rows.map(o=>`
+    <tr>
+      <td class="clickable" data-open="${o.id}"><strong>${esc(o.number)}</strong></td>
+      <td class="clickable" data-open="${o.id}">${esc(customerName(o.customerId))}</td>
+      <td class="clickable" data-open="${o.id}">${fmtDate(o.date)}</td>
+      <td class="clickable" data-open="${o.id}">${o.validUntil ? fmtDate(o.validUntil) : "–"}</td>
+      <td class="num clickable" data-open="${o.id}">${fmtCHF(orderTotal(o))}</td>
+      <td>
+        <select class="status-select badge-${QUOTE_BADGE_CLASS[o.status]}" data-statusof="${o.id}">
+          ${Object.entries(STATUS_QUOTE).map(([k,v])=>`<option value="${k}" ${o.status===k?"selected":""}>${v}</option>`).join("")}
+        </select>
+      </td>
+      <td>
+        <div style="display:flex;gap:6px;justify-content:flex-end;">
+          <button class="btn btn-sm" data-print="${o.id}">Drucken</button>
+          ${o.orderId ? `<span class="badge" style="background:var(--beige);">in Bestellung</span>` : `<button class="btn btn-sm btn-primary" data-convert="${o.id}">→ Bestellung</button>`}
+        </div>
+      </td>
+    </tr>`).join("");
+
+  $$("#angeboteTableBody [data-open]").forEach(td=> td.addEventListener("click", ()=> openQuoteForm(state.quotes.find(o=>o.id===td.dataset.open))));
+  $$("#angeboteTableBody [data-statusof]").forEach(sel=>{
+    sel.addEventListener("change", async ()=>{
+      await dbUpdate("quotes", sel.dataset.statusof, {status: sel.value});
+      toast("Status aktualisiert.");
+    });
+  });
+  $$("#angeboteTableBody [data-print]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{ e.stopPropagation(); openQuotePrintView(state.quotes.find(o=>o.id===btn.dataset.print)); });
+  });
+  $$("#angeboteTableBody [data-convert]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{ e.stopPropagation(); convertQuoteToOrder(state.quotes.find(o=>o.id===btn.dataset.convert)); });
+  });
+}
+$("#angeboteSearch").addEventListener("input", renderAngebote);
+$("#angeboteStatusFilter").addEventListener("change", renderAngebote);
+$("#newAngebotBtn").addEventListener("click", ()=> openQuoteForm());
+
+function openQuoteForm(quote, presetCustomerId){
+  const isEdit = !!quote;
+  quote = quote || {customerId:presetCustomerId||"", date:todayISO(), validUntil:"", status:"entwurf", items:[], notes:""};
+  let items = (quote.items||[]).map(it=>({...it}));
+  if(!items.length) items.push({articleId:"",name:"",qty:1,price:0});
+
+  $("#modalTitle").textContent = isEdit ? ("Angebot " + quote.number) : "Neues Angebot";
+  $("#modalBody").innerHTML = `
+    <div class="form-row"><label>Kunde *</label>
+      <select id="q_customer">
+        <option value="">– auswählen –</option>
+        ${state.customers.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(c=>`<option value="${c.id}" ${quote.customerId===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-grid3">
+      <div class="form-row"><label>Datum</label><input type="date" id="q_date" value="${quote.date||todayISO()}"></div>
+      <div class="form-row"><label>Gültig bis</label><input type="date" id="q_validUntil" value="${quote.validUntil||""}"></div>
+      <div class="form-row"><label>Status</label>
+        <select id="q_status">${Object.entries(STATUS_QUOTE).map(([k,v])=>`<option value="${k}" ${quote.status===k?"selected":""}>${v}</option>`).join("")}</select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Artikel</label>
+      <div class="line-items" id="q_lines">
+        <div class="line-item-row head"><div>Artikel</div><div>Menge</div><div>Preis</div><div>Total</div><div></div></div>
+      </div>
+      <button class="btn btn-sm add-line-btn" id="q_addLine">+ Position</button>
+    </div>
+    <div class="form-row"><label>Notizen</label><textarea id="q_notes">${esc(quote.notes||"")}</textarea></div>
+    <div style="text-align:right;font-weight:700;font-size:15px;margin-top:6px;">Total: <span id="q_total">CHF 0.00</span></div>
+  `;
+  $("#modalFoot").innerHTML = `
+    ${isEdit ? `<button class="btn btn-danger" id="delBtn" style="margin-right:auto;">Löschen</button>` : ""}
+    ${isEdit ? `<button class="btn" id="printBtn">🖨️ Drucken</button>` : ""}
+    <button class="btn" id="cancelBtn">Abbrechen</button>
+    <button class="btn btn-primary" id="saveBtn">Speichern</button>
+  `;
+  openModal();
+  if(isEdit){ $("#printBtn").onclick = ()=> openQuotePrintView(quote); }
+
+  function renderLines(){
+    const wrap = $("#q_lines");
+    wrap.querySelectorAll(".line-item-row:not(.head)").forEach(el=>el.remove());
+    items.forEach((it,idx)=>{
+      const row = document.createElement("div");
+      row.className = "line-item-row";
+      row.innerHTML = `
+        <select data-idx="${idx}" class="li-article">
+          <option value="">– frei –</option>
+          ${state.articles.map(a=>`<option value="${a.id}" ${it.articleId===a.id?"selected":""}>${esc(a.name)}</option>`).join("")}
+        </select>
+        <input type="number" min="0" step="1" class="li-qty" data-idx="${idx}" value="${it.qty}">
+        <input type="number" min="0" step="0.05" class="li-price" data-idx="${idx}" value="${it.price}">
+        <div class="num" style="font-size:13px;">${fmtCHF((Number(it.qty)||0)*(Number(it.price)||0))}</div>
+        <button class="rm-line" data-idx="${idx}">✕</button>
+      `;
+      wrap.appendChild(row);
+    });
+    wrap.querySelectorAll(".li-article").forEach(sel=> sel.addEventListener("change", ()=>{
+      const idx = +sel.dataset.idx;
+      const art = articleById(sel.value);
+      if(art){ items[idx].articleId = art.id; items[idx].name = art.name; items[idx].price = art.price; }
+      else { items[idx].articleId = ""; }
+      renderLines();
+    }));
+    wrap.querySelectorAll(".li-qty").forEach(inp=> inp.addEventListener("input", ()=>{ items[+inp.dataset.idx].qty = parseFloat(inp.value)||0; updateTotal(); }));
+    wrap.querySelectorAll(".li-price").forEach(inp=> inp.addEventListener("input", ()=>{ items[+inp.dataset.idx].price = parseFloat(inp.value)||0; updateTotal(); }));
+    wrap.querySelectorAll(".rm-line").forEach(btn=> btn.addEventListener("click", ()=>{ items.splice(+btn.dataset.idx,1); renderLines(); updateTotal(); }));
+    updateTotal();
+  }
+  function updateTotal(){
+    const total = items.reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.price)||0), 0);
+    $("#q_total").textContent = fmtCHF(total);
+  }
+  $("#q_addLine").addEventListener("click", ()=>{ items.push({articleId:"",name:"",qty:1,price:0}); renderLines(); });
+  renderLines();
+
+  $("#cancelBtn").onclick = closeModal;
+  if(isEdit){
+    $("#delBtn").onclick = async ()=>{
+      if(confirm("Dieses Angebot wirklich löschen?")){
+        await dbDelete("quotes", quote.id);
+        closeModal();
+        toast("Angebot gelöscht.");
+      }
+    };
+  }
+  $("#saveBtn").onclick = async ()=>{
+    const customerId = $("#q_customer").value;
+    if(!customerId){ toast("Bitte einen Kunden wählen."); return; }
+    const cleanItems = items.filter(it=> (it.name||articleById(it.articleId)?.name) && (Number(it.qty)>0));
+    if(!cleanItems.length){ toast("Bitte mindestens eine Position mit Menge angeben."); return; }
+    const data = {
+      customerId, date:$("#q_date").value||todayISO(), validUntil:$("#q_validUntil").value||null, status:$("#q_status").value,
+      items: cleanItems.map(it=>({articleId:it.articleId||null, name:it.name||articleById(it.articleId)?.name||"Artikel", qty:Number(it.qty)||0, price:Number(it.price)||0})),
+      notes: $("#q_notes").value.trim(),
+    };
+    if(isEdit){
+      await dbUpdate("quotes", quote.id, data);
+      toast("Angebot aktualisiert.");
+    }else{
+      data.number = nextDocNumber("AN","quotes");
+      data.createdAt = new Date().toISOString();
+      await dbAdd("quotes", data);
+      toast("Angebot erfasst.");
+    }
+    closeModal();
+  };
+}
+
+async function convertQuoteToOrder(quote){
+  if(!quote) return;
+  if(quote.orderId){ toast("Dieses Angebot wurde bereits in eine Bestellung umgewandelt."); return; }
+  if(!confirm("Angebot " + quote.number + " in eine Bestellung umwandeln?")) return;
+  const orderData = {
+    customerId: quote.customerId, date: todayISO(), status: "offen",
+    items: quote.items||[], notes: quote.notes||"",
+    number: nextDocNumber("B","orders"),
+    createdAt: new Date().toISOString(),
+  };
+  const orderId = await dbAdd("orders", orderData);
+  if(orderId){
+    await dbUpdate("quotes", quote.id, {orderId, status:"angenommen"});
+    toast("Bestellung " + orderData.number + " erstellt.");
+    showTab("bestellungen");
+  }
+}
+
+function openQuotePrintView(quote){
+  if(!quote) return;
+  const c = customerById(quote.customerId) || {};
+  const totals = invoiceTotals(quote);
+  const vatPct = (VAT_RATE*100).toFixed(1);
+  $("#printView").innerHTML = `
+    ${brandedHeader("ANGEBOT", [["Angebot-Nr.", quote.number], ["Datum", fmtDate(quote.date)], ["Gültig bis", quote.validUntil?fmtDate(quote.validUntil):"–"]])}
+    ${brandedCustomerBlock(c)}
+    ${brandedItemsTable(quote.items||[], true)}
+    ${brandedTotals(totals, vatPct)}
+    <div style="font-size:11px;color:${BRAND.navy};margin-bottom:6px;">Dieses Angebot ist freibleibend und unverbindlich bis zum genannten Datum.</div>
+    ${brandedFooter()}
+  `;
+  setTimeout(()=> window.print(), 50);
 }
 
 /* ---------------- ARTIKEL ---------------- */
