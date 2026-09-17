@@ -249,7 +249,7 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
 <div class="app">
   <header class="top">
     <div class="brand">
-      <div class="brand-mark">CM</div>
+      <div class="brand-mark" id="brandMark" style="background:transparent;padding:0;overflow:hidden;"></div>
       <div class="brand-text">
         <h1>Candle Momente & Co</h1>
         <p>Kunden · Bestellungen · Rechnungen</p>
@@ -266,6 +266,8 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
     <button data-tab="bestellungen">Bestellungen</button>
     <button data-tab="artikel">Artikel</button>
     <button data-tab="rechnungen">Rechnungen</button>
+    <button data-tab="ausgaben">Ausgaben</button>
+    <button data-tab="statistik">Statistik</button>
   </nav>
 
   <main>
@@ -397,6 +399,42 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
       </div>
     </section>
 
+    <!-- AUSGABEN -->
+    <section class="view" id="view-ausgaben">
+      <h2 class="view-title">Ausgaben <small>Materialkosten, Verpackung, Sonstiges</small></h2>
+      <div class="toolbar">
+        <input class="search-input" id="ausgabenSearch" placeholder="Beschreibung suchen …">
+        <select class="filter" id="ausgabenKategorieFilter">
+          <option value="">Alle Kategorien</option>
+          <option value="Material">Material</option>
+          <option value="Verpackung">Verpackung</option>
+          <option value="Marketing">Marketing</option>
+          <option value="Transport">Transport</option>
+          <option value="Sonstiges">Sonstiges</option>
+        </select>
+        <button class="btn btn-primary" id="newAusgabeBtn">+ Neue Ausgabe</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Datum</th><th>Kategorie</th><th>Beschreibung</th><th class="num">Betrag</th><th></th></tr></thead>
+          <tbody id="ausgabenTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- STATISTIK -->
+    <section class="view" id="view-statistik">
+      <h2 class="view-title">Statistik <small>Einnahmen &amp; Ausgaben</small></h2>
+      <div class="stat-grid" id="statStatGrid"></div>
+      <div class="card card-pad">
+        <div class="panel-title">Letzte 6 Monate</div>
+        <table>
+          <thead><tr><th>Monat</th><th class="num">Einnahmen</th><th class="num">Ausgaben</th><th class="num">Gewinn</th></tr></thead>
+          <tbody id="statMonthlyBody"></tbody>
+        </table>
+      </div>
+    </section>
+
   </main>
   <div class="footer-note">Candle Momente & Co — internes Dashboard</div>
 </div>
@@ -420,6 +458,13 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
 (function(){
 "use strict";
 const LOGO_DATA_URI = "data:image/png;base64,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";
+
+$("#brandMark").innerHTML = '<img src="' + LOGO_DATA_URI + '" style="width:100%;height:100%;object-fit:cover;">';
+(function setFavicon(){
+  const link = document.createElement("link");
+  link.rel = "icon"; link.type = "image/png"; link.href = LOGO_DATA_URI;
+  document.head.appendChild(link);
+})();
 
 
 /* ---------------- helpers ---------------- */
@@ -450,7 +495,8 @@ const state = {
   orders: [],
   invoices: [],
   tasks: [],
-  ready: {customers:false, articles:false, orders:false, invoices:false, tasks:false},
+  expenses: [],
+  ready: {customers:false, articles:false, orders:false, invoices:false, tasks:false, expenses:false},
   currentTab: "dashboard",
   currentCustomerId: null,
 };
@@ -478,6 +524,7 @@ const COLMAP = {
   orders:    {number:"number", customerId:"customer_id", date:"date", status:"status", items:"items", notes:"notes", invoiceId:"invoice_id", lieferscheinNumber:"lieferschein_number", lieferscheinDate:"lieferschein_date", createdAt:"created_at"},
   invoices:  {number:"number", orderId:"order_id", customerId:"customer_id", date:"date", dueDate:"due_date", items:"items", vatRate:"vat_rate", paymentStatus:"payment_status", paidDate:"paid_date", createdAt:"created_at"},
   tasks:     {customerId:"customer_id", type:"type", text:"text", dueDate:"due_date", done:"done", createdAt:"created_at"},
+  expenses:  {date:"date", category:"category", description:"description", amount:"amount", createdAt:"created_at"},
 };
 function toDb(col, data){
   const map = COLMAP[col];
@@ -503,7 +550,7 @@ async function initDb(){
     return;
   }
   db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  await Promise.all(["customers","articles","orders","invoices","tasks"].map(col=> fetchAll(col)));
+  await Promise.all(["customers","articles","orders","invoices","tasks","expenses"].map(col=> fetchAll(col)));
   subscribeRealtime();
 }
 
@@ -528,6 +575,7 @@ function subscribeRealtime(){
     .on("postgres_changes", {event:"*", schema:"public", table:"orders"},    ()=> fetchAll("orders").then(renderAll))
     .on("postgres_changes", {event:"*", schema:"public", table:"invoices"},  ()=> fetchAll("invoices").then(renderAll))
     .on("postgres_changes", {event:"*", schema:"public", table:"tasks"},     ()=> fetchAll("tasks").then(renderAll))
+    .on("postgres_changes", {event:"*", schema:"public", table:"expenses"},  ()=> fetchAll("expenses").then(renderAll))
     .subscribe();
 }
 
@@ -616,7 +664,7 @@ function brandedFooter(){
 function brandedItemsTable(items, showPrices){
   const headCells = showPrices
     ? `<th style="text-align:left;padding:8px;">Artikel</th><th style="text-align:center;padding:8px;">Menge</th><th style="text-align:center;padding:8px;">Einheit</th><th style="text-align:right;padding:8px;">Preis</th><th style="text-align:right;padding:8px;">Total</th>`
-    : `<th style="text-align:left;padding:8px;">Artikel</th><th style="text-align:center;padding:8px;">Menge</th><th style="text-align:center;padding:8px;">Einheit</th>`;
+    : `<th style="text-align:left;padding:8px;">Artikel</th><th style="text-align:center;padding:8px;">Menge</th><th style="text-align:center;padding:8px;">Einheit</th><th style="text-align:left;padding:8px;">Bemerkung</th>`;
   const rows = items.map(it=>{
     const unit = it.unit || "Stk";
     return showPrices ? `<tr>
@@ -629,6 +677,7 @@ function brandedItemsTable(items, showPrices){
         <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};">${esc(it.name)}</td>
         <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};text-align:center;">${it.qty}</td>
         <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};text-align:center;">${esc(unit)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};">&nbsp;</td>
       </tr>`;
   }).join("");
   return `<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:18px;">
@@ -722,7 +771,7 @@ function showTab(tab){
   state.currentTab = tab;
   $$("#tabs button").forEach(b=> b.classList.toggle("active", b.dataset.tab===tab));
   $$(".view").forEach(v=> v.classList.remove("active"));
-  const map = {dashboard:"view-dashboard", kunden:"view-kunden", bestellungen:"view-bestellungen", artikel:"view-artikel", rechnungen:"view-rechnungen"};
+  const map = {dashboard:"view-dashboard", kunden:"view-kunden", bestellungen:"view-bestellungen", artikel:"view-artikel", rechnungen:"view-rechnungen", ausgaben:"view-ausgaben", statistik:"view-statistik"};
   $("#"+map[tab]).classList.add("active");
   renderAll();
 }
@@ -735,6 +784,8 @@ function renderAll(){
   if(state.currentTab==="bestellungen") renderBestellungen();
   if(state.currentTab==="artikel") renderArtikel();
   if(state.currentTab==="rechnungen") renderRechnungen();
+  if(state.currentTab==="ausgaben") renderAusgaben();
+  if(state.currentTab==="statistik") renderStatistik();
   if(document.getElementById("view-kunde-detail").classList.contains("active") && state.currentCustomerId){
     renderKundeDetail(state.currentCustomerId);
   }
@@ -749,14 +800,16 @@ function renderDashboard(){
   const openInvoices = state.invoices.filter(i=>i.paymentStatus==="offen" || i.paymentStatus==="ueberfaellig");
   const revenuePaid = state.invoices.filter(i=>i.paymentStatus==="bezahlt").reduce((s,i)=>s+invoiceTotals(i).total,0);
   const revenueOpen = openInvoices.reduce((s,i)=>s+invoiceTotals(i).total,0);
+  const totalExpense = state.expenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const profit = revenuePaid - totalExpense;
 
   const stats = [
     {label:"Offene Bestellungen", value: openOrders.length, sub: state.orders.length + " total"},
     {label:"Offene Lieferungen", value: openDeliveries.length, sub:"noch zu liefern"},
     {label:"Offene Rechnungen", value: openInvoices.length, sub: fmtCHF(revenueOpen)},
     {label:"Umsatz (bezahlt)", value: fmtCHF(revenuePaid), sub: state.invoices.length + " Rechnungen total"},
-    {label:"Kunden", value: state.customers.length, sub:"aktiv"},
-    {label:"Artikel", value: state.articles.length, sub:"im Sortiment"},
+    {label:"Ausgaben", value: fmtCHF(totalExpense), sub: state.expenses.length + " Einträge"},
+    {label:"Gewinn", value: fmtCHF(profit), sub: profit>=0 ? "positiv" : "negativ"},
   ];
   $("#statGrid").innerHTML = stats.map(s=>`
     <div class="stat-card">
@@ -1289,6 +1342,118 @@ function renderRechnungen(){
 }
 $("#rechnungenSearch").addEventListener("input", renderRechnungen);
 $("#rechnungenStatusFilter").addEventListener("change", renderRechnungen);
+
+/* ---------------- AUSGABEN ---------------- */
+function renderAusgaben(){
+  const q = ($("#ausgabenSearch").value||"").toLowerCase();
+  const catF = $("#ausgabenKategorieFilter").value;
+  let rows = state.expenses.filter(e=>{
+    if(catF && e.category!==catF) return false;
+    if(!q) return true;
+    return (e.description||"").toLowerCase().includes(q);
+  }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+  if(!rows.length){
+    $("#ausgabenTableBody").innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="big">🧾</div>Keine Ausgaben erfasst.</div></td></tr>`;
+    return;
+  }
+  $("#ausgabenTableBody").innerHTML = rows.map(e=>`
+    <tr class="clickable" data-id="${e.id}">
+      <td>${fmtDate(e.date)}</td>
+      <td><span class="badge" style="background:var(--beige);color:var(--text);">${esc(e.category||"Sonstiges")}</span></td>
+      <td>${esc(e.description||"")}</td>
+      <td class="num">${fmtCHF(e.amount)}</td>
+      <td></td>
+    </tr>`).join("");
+  $$("#ausgabenTableBody tr[data-id]").forEach(tr=> tr.addEventListener("click", ()=> openExpenseForm(state.expenses.find(e=>e.id===tr.dataset.id))));
+}
+$("#ausgabenSearch").addEventListener("input", renderAusgaben);
+$("#ausgabenKategorieFilter").addEventListener("change", renderAusgaben);
+$("#newAusgabeBtn").addEventListener("click", ()=> openExpenseForm());
+
+function openExpenseForm(expense){
+  const isEdit = !!expense;
+  expense = expense || {date:todayISO(), category:"Material", description:"", amount:0};
+  $("#modalTitle").textContent = isEdit ? "Ausgabe bearbeiten" : "Neue Ausgabe";
+  $("#modalBody").innerHTML = `
+    <div class="form-grid2">
+      <div class="form-row"><label>Datum</label><input type="date" id="e_date" value="${expense.date||todayISO()}"></div>
+      <div class="form-row"><label>Kategorie</label>
+        <select id="e_category">
+          ${["Material","Verpackung","Marketing","Transport","Sonstiges"].map(c=>`<option value="${c}" ${expense.category===c?"selected":""}>${c}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+    <div class="form-row"><label>Beschreibung *</label><input id="e_description" value="${esc(expense.description)}" placeholder="z.B. Wachs, Dochte, Duftöle bei Lieferant XY"></div>
+    <div class="form-row"><label>Betrag (CHF) *</label><input type="number" step="0.05" id="e_amount" value="${expense.amount}"></div>
+  `;
+  $("#modalFoot").innerHTML = `
+    ${isEdit ? `<button class="btn btn-danger" id="delBtn" style="margin-right:auto;">Löschen</button>` : ""}
+    <button class="btn" id="cancelBtn">Abbrechen</button>
+    <button class="btn btn-primary" id="saveBtn">Speichern</button>
+  `;
+  openModal();
+  $("#cancelBtn").onclick = closeModal;
+  if(isEdit){
+    $("#delBtn").onclick = async ()=>{
+      if(confirm("Diese Ausgabe wirklich löschen?")){
+        await dbDelete("expenses", expense.id);
+        closeModal();
+        toast("Ausgabe gelöscht.");
+      }
+    };
+  }
+  $("#saveBtn").onclick = async ()=>{
+    const description = $("#e_description").value.trim();
+    const amount = parseFloat($("#e_amount").value)||0;
+    if(!description){ toast("Bitte eine Beschreibung angeben."); return; }
+    if(amount<=0){ toast("Bitte einen Betrag angeben."); return; }
+    const data = {date:$("#e_date").value||todayISO(), category:$("#e_category").value, description, amount};
+    if(isEdit) await dbUpdate("expenses", expense.id, data);
+    else { data.createdAt = new Date().toISOString(); await dbAdd("expenses", data); }
+    closeModal();
+    toast("Gespeichert.");
+  };
+}
+
+/* ---------------- STATISTIK ---------------- */
+function renderStatistik(){
+  const paidInvoices = state.invoices.filter(i=>i.paymentStatus==="bezahlt");
+  const totalIncome = paidInvoices.reduce((s,i)=>s+invoiceTotals(i).total,0);
+  const totalExpense = state.expenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const profit = totalIncome - totalExpense;
+
+  $("#statStatGrid").innerHTML = [
+    {label:"Einnahmen (bezahlt)", value: fmtCHF(totalIncome), sub: paidInvoices.length + " Rechnungen"},
+    {label:"Ausgaben", value: fmtCHF(totalExpense), sub: state.expenses.length + " Einträge"},
+    {label:"Gewinn", value: fmtCHF(profit), sub: profit>=0 ? "positiv" : "negativ"},
+  ].map(s=>`
+    <div class="stat-card">
+      <div class="label">${esc(s.label)}</div>
+      <div class="value">${s.value}</div>
+      <div class="sub">${esc(s.sub)}</div>
+    </div>`).join("");
+
+  // last 6 months, oldest first
+  const months = [];
+  const now = new Date();
+  for(let i=5;i>=0;i--){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    months.push({key: d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"), label: d.toLocaleDateString('de-CH',{month:'long', year:'numeric'})});
+  }
+  const rows = months.map(m=>{
+    const inc = paidInvoices.filter(i=>(i.paidDate||i.date||"").startsWith(m.key)).reduce((s,i)=>s+invoiceTotals(i).total,0);
+    const exp = state.expenses.filter(e=>(e.date||"").startsWith(m.key)).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    return {label:m.label, inc, exp, profit: inc-exp};
+  });
+  $("#statMonthlyBody").innerHTML = rows.map(r=>`
+    <tr>
+      <td>${esc(r.label)}</td>
+      <td class="num">${fmtCHF(r.inc)}</td>
+      <td class="num">${fmtCHF(r.exp)}</td>
+      <td class="num" style="font-weight:700;color:${r.profit>=0?'var(--green)':'var(--red)'};">${fmtCHF(r.profit)}</td>
+    </tr>`).join("");
+}
 
 async function createInvoiceFromOrder(order){
   if(!order) return;
