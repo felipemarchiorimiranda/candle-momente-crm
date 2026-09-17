@@ -109,6 +109,15 @@ h2.view-title small{font-size:12px;font-weight:400;color:var(--text-soft);}
 
 .dash-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;}
 @media (max-width:820px){.dash-grid{grid-template-columns:1fr;}}
+
+.ie-wrap{display:flex;gap:28px;align-items:center;flex-wrap:wrap;}
+.ie-pie{width:140px;height:140px;border-radius:50%;flex-shrink:0;}
+.ie-legend{display:flex;flex-direction:column;gap:6px;font-size:13px;}
+.ie-legend .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;}
+.ie-bars{flex:1;min-width:220px;display:flex;flex-direction:column;gap:12px;}
+.ie-bar-row .ie-bar-label{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px;color:var(--text-soft);}
+.ie-bar-track{background:var(--beige-light);border-radius:6px;height:14px;overflow:hidden;}
+.ie-bar-fill{height:100%;border-radius:6px;transition:width .3s;}
 .panel-title{font-size:14px;font-weight:700;margin:0 0 12px;display:flex;justify-content:space-between;align-items:center;}
 .mini-list{display:flex;flex-direction:column;gap:2px;}
 .mini-row{display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-bottom:1px solid var(--border);font-size:13px;}
@@ -276,6 +285,10 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
     <section class="view active" id="view-dashboard">
       <h2 class="view-title">Dashboard <small id="dashDate"></small></h2>
       <div class="stat-grid" id="statGrid"></div>
+      <div class="card card-pad" style="margin-bottom:16px;">
+        <div class="panel-title">Einnahmen &amp; Ausgaben</div>
+        <div id="dashIncomeExpense"></div>
+      </div>
       <div class="dash-grid">
         <div class="card card-pad">
           <div class="panel-title">Offene Bestellungen</div>
@@ -358,7 +371,7 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
       </div>
       <div class="card">
         <table>
-          <thead><tr><th>Nr.</th><th>Kunde</th><th>Datum</th><th class="num">Betrag</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Nr.</th><th>Kunde</th><th>Datum</th><th>Liefertermin</th><th class="num">Betrag</th><th>Status</th><th></th></tr></thead>
           <tbody id="bestellungenTableBody"></tbody>
         </table>
       </div>
@@ -521,7 +534,7 @@ let canWrite = true;
 const COLMAP = {
   customers: {name:"name", contact:"contact", street:"street", zip:"zip", ort:"ort", phone:"phone", email:"email", notes:"notes", files:"files", createdAt:"created_at"},
   articles:  {name:"name", category:"category", price:"price", unit:"unit", createdAt:"created_at"},
-  orders:    {number:"number", customerId:"customer_id", date:"date", status:"status", items:"items", notes:"notes", invoiceId:"invoice_id", lieferscheinNumber:"lieferschein_number", lieferscheinDate:"lieferschein_date", createdAt:"created_at"},
+  orders:    {number:"number", customerId:"customer_id", date:"date", status:"status", items:"items", notes:"notes", invoiceId:"invoice_id", lieferscheinNumber:"lieferschein_number", lieferscheinDate:"lieferschein_date", plannedDeliveryDate:"planned_delivery_date", createdAt:"created_at"},
   invoices:  {number:"number", orderId:"order_id", customerId:"customer_id", date:"date", dueDate:"due_date", items:"items", vatRate:"vat_rate", paymentStatus:"payment_status", paidDate:"paid_date", createdAt:"created_at"},
   tasks:     {customerId:"customer_id", type:"type", text:"text", dueDate:"due_date", done:"done", createdAt:"created_at"},
   expenses:  {date:"date", category:"category", description:"description", amount:"amount", createdAt:"created_at"},
@@ -818,17 +831,22 @@ function renderDashboard(){
       <div class="sub">${esc(s.sub)}</div>
     </div>`).join("");
 
+  renderIncomeExpensePanel(revenuePaid, totalExpense);
+
   $("#dashOpenOrders").innerHTML = openOrders.length ? openOrders.slice(0,6).map(o=>`
     <div class="mini-row">
       <span class="name">${esc(o.number||"–")} · ${esc(customerName(o.customerId))}</span>
       <span class="badge badge-${o.status}">${STATUS_ORDER[o.status]||o.status}</span>
     </div>`).join("") : `<div class="empty-hint">Keine offenen Bestellungen 🎉</div>`;
 
-  $("#dashOpenDeliveries").innerHTML = openDeliveries.length ? openDeliveries.slice(0,6).map(o=>`
-    <div class="mini-row">
+  const today = todayISO();
+  $("#dashOpenDeliveries").innerHTML = openDeliveries.length ? openDeliveries.slice().sort((a,b)=>(a.plannedDeliveryDate||"9999").localeCompare(b.plannedDeliveryDate||"9999")).slice(0,6).map(o=>{
+    const overdue = o.plannedDeliveryDate && o.plannedDeliveryDate < today;
+    return `<div class="mini-row">
       <span class="name">${esc(o.number||"–")} · ${esc(customerName(o.customerId))}</span>
-      <span class="amt">${fmtCHF(orderTotal(o))}</span>
-    </div>`).join("") : `<div class="empty-hint">Alles geliefert 🎉</div>`;
+      <span class="amt" style="${overdue?'color:var(--red);':''}">${o.plannedDeliveryDate ? fmtDate(o.plannedDeliveryDate) : "kein Termin"}</span>
+    </div>`;
+  }).join("") : `<div class="empty-hint">Alles geliefert 🎉</div>`;
 
   const revByCustomer = {};
   state.invoices.filter(i=>i.paymentStatus==="bezahlt").forEach(i=>{
@@ -852,6 +870,36 @@ function renderDashboard(){
 function customerName(id){
   const c = customerById(id);
   return c ? c.name : "Unbekannt";
+}
+
+function renderIncomeExpensePanel(income, expense){
+  const total = income + expense;
+  const target = $("#dashIncomeExpense");
+  if(!target) return;
+  if(total <= 0){
+    target.innerHTML = `<div class="empty-hint">Noch keine Einnahmen oder Ausgaben erfasst.</div>`;
+    return;
+  }
+  const incomePct = (income/total*100);
+  const maxVal = Math.max(income, expense, 1);
+  target.innerHTML = `
+    <div class="ie-wrap">
+      <div class="ie-pie" style="background:conic-gradient(var(--green) 0% ${incomePct}%, var(--red) ${incomePct}% 100%);"></div>
+      <div class="ie-legend">
+        <div><span class="dot" style="background:var(--green);"></span>Einnahmen — ${fmtCHF(income)} (${incomePct.toFixed(0)}%)</div>
+        <div><span class="dot" style="background:var(--red);"></span>Ausgaben — ${fmtCHF(expense)} (${(100-incomePct).toFixed(0)}%)</div>
+      </div>
+      <div class="ie-bars">
+        <div class="ie-bar-row">
+          <div class="ie-bar-label"><span>Einnahmen</span><span>${fmtCHF(income)}</span></div>
+          <div class="ie-bar-track"><div class="ie-bar-fill" style="width:${(income/maxVal*100)}%;background:var(--green);"></div></div>
+        </div>
+        <div class="ie-bar-row">
+          <div class="ie-bar-label"><span>Ausgaben</span><span>${fmtCHF(expense)}</span></div>
+          <div class="ie-bar-track"><div class="ie-bar-fill" style="width:${(expense/maxVal*100)}%;background:var(--red);"></div></div>
+        </div>
+      </div>
+    </div>`;
 }
 
 /* ---------------- KUNDEN ---------------- */
@@ -1077,14 +1125,18 @@ function renderBestellungen(){
   }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
 
   if(!rows.length){
-    $("#bestellungenTableBody").innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="big">📦</div>Keine Bestellungen gefunden.</div></td></tr>`;
+    $("#bestellungenTableBody").innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="big">📦</div>Keine Bestellungen gefunden.</div></td></tr>`;
     return;
   }
-  $("#bestellungenTableBody").innerHTML = rows.map(o=>`
+  const today = todayISO();
+  $("#bestellungenTableBody").innerHTML = rows.map(o=>{
+    const overdue = o.plannedDeliveryDate && o.plannedDeliveryDate < today && o.status!=="geliefert" && o.status!=="abgeschlossen";
+    return `
     <tr>
       <td class="clickable" data-open="${o.id}"><strong>${esc(o.number)}</strong></td>
       <td class="clickable" data-open="${o.id}">${esc(customerName(o.customerId))}</td>
       <td class="clickable" data-open="${o.id}">${fmtDate(o.date)}</td>
+      <td class="clickable" data-open="${o.id}" style="${overdue?'color:var(--red);font-weight:700;':''}">${o.plannedDeliveryDate ? fmtDate(o.plannedDeliveryDate) : "–"}${overdue?" ⚠":""}</td>
       <td class="num clickable" data-open="${o.id}">${fmtCHF(orderTotal(o))}</td>
       <td>
         <select class="status-select badge-${o.status}" data-statusof="${o.id}">
@@ -1097,7 +1149,8 @@ function renderBestellungen(){
           ${o.invoiceId ? `<span class="badge" style="background:var(--beige);">verrechnet</span>` : `<button class="btn btn-sm" data-mkinv="${o.id}">Rechnung erstellen</button>`}
         </div>
       </td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
 
   $$("#bestellungenTableBody [data-open]").forEach(td=> td.addEventListener("click", ()=> openOrderForm(orderById(td.dataset.open))));
   $$("#bestellungenTableBody [data-statusof]").forEach(sel=>{
@@ -1131,8 +1184,9 @@ function openOrderForm(order, presetCustomerId){
         ${state.customers.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(c=>`<option value="${c.id}" ${order.customerId===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}
       </select>
     </div>
-    <div class="form-grid2">
+    <div class="form-grid3">
       <div class="form-row"><label>Datum</label><input type="date" id="o_date" value="${order.date||todayISO()}"></div>
+      <div class="form-row"><label>Geplanter Liefertermin</label><input type="date" id="o_plannedDelivery" value="${order.plannedDeliveryDate||""}"></div>
       <div class="form-row"><label>Status</label>
         <select id="o_status">${Object.entries(STATUS_ORDER).map(([k,v])=>`<option value="${k}" ${order.status===k?"selected":""}>${v}</option>`).join("")}</select>
       </div>
@@ -1216,6 +1270,7 @@ function openOrderForm(order, presetCustomerId){
     if(!cleanItems.length){ toast("Bitte mindestens eine Position mit Menge angeben."); return; }
     const data = {
       customerId, date:$("#o_date").value||todayISO(), status:$("#o_status").value,
+      plannedDeliveryDate: $("#o_plannedDelivery").value || null,
       items: cleanItems.map(it=>({articleId:it.articleId||null, name:it.name||articleById(it.articleId)?.name||"Artikel", qty:Number(it.qty)||0, price:Number(it.price)||0})),
       notes: $("#o_notes").value.trim(),
     };
