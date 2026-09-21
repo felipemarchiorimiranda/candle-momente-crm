@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --navy:#332D26;
@@ -800,16 +802,13 @@ async function openLieferscheinView(order){
     order = {...order, lieferscheinNumber:number, lieferscheinDate:lsDate};
   }
   const c = customerById(order.customerId) || {};
-  openPrintPreviewModal("Lieferschein", c, (editedCustomer)=>{
-    $("#printView").innerHTML = `
+  openPrintPreviewModal("Lieferschein", c, (editedCustomer)=> `
       ${brandedHeader("LIEFERSCHEIN", [["Lieferschein-Nr.", order.lieferscheinNumber], ["Datum", fmtDate(order.lieferscheinDate||todayISO())], ["Bestellung", order.number||""], ["Kundennummer", editedCustomer.customerNumber||"–"]])}
       ${brandedCustomerBlock(editedCustomer)}
       ${brandedItemsTable(order.items||[], false)}
       ${brandedSignature()}
       ${brandedFooter()}
-    `;
-    setTimeout(()=> window.print(), 50);
-  });
+    `, "Lieferschein_" + order.lieferscheinNumber);
 }
 
 function customerRevenue(customerId){
@@ -1473,6 +1472,7 @@ function openQuoteForm(quote, presetCustomerId){
     </div>
     <div class="form-row"><label>Notizen</label><textarea id="q_notes">${esc(quote.notes||"")}</textarea></div>
     <div style="text-align:right;font-weight:700;font-size:15px;margin-top:6px;">Total: <span id="q_total">CHF 0.00</span></div>
+    <div style="text-align:right;font-size:11.5px;color:var(--text-soft);margin-top:2px;">Mindestbestellwert: CHF 400.00 (wird auf dem Angebot vermerkt)</div>
   `;
   $("#modalFoot").innerHTML = `
     ${isEdit ? `<button class="btn btn-danger" id="delBtn" style="margin-right:auto;">Löschen</button>` : ""}
@@ -1539,8 +1539,6 @@ function openQuoteForm(quote, presetCustomerId){
     if(!customerId){ toast("Bitte einen Kunden wählen."); return; }
     const cleanItems = items.filter(it=> (it.name||articleById(it.articleId)?.name) && (Number(it.qty)>0));
     if(!cleanItems.length){ toast("Bitte mindestens eine Position mit Menge angeben."); return; }
-    const quoteTotal = cleanItems.reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.price)||0), 0);
-    if(quoteTotal < 400){ toast("Mindestbestellwert für Angebote ist CHF 400.00."); return; }
     const data = {
       customerId, date:$("#q_date").value||todayISO(), validUntil:$("#q_validUntil").value||null, status:$("#q_status").value,
       items: cleanItems.map(it=>({articleId:it.articleId||null, name:it.name||articleById(it.articleId)?.name||"Artikel", qty:Number(it.qty)||0, price:Number(it.price)||0})),
@@ -1582,17 +1580,14 @@ function openQuotePrintView(quote){
   const c = customerById(quote.customerId) || {};
   const totals = invoiceTotals(quote);
   const vatPct = (VAT_RATE*100).toFixed(1);
-  openPrintPreviewModal("Angebot", c, (editedCustomer)=>{
-    $("#printView").innerHTML = `
+  openPrintPreviewModal("Angebot", c, (editedCustomer)=> `
       ${brandedHeader("ANGEBOT", [["Angebot-Nr.", quote.number], ["Datum", fmtDate(quote.date)], ["Gültig bis", quote.validUntil?fmtDate(quote.validUntil):"–"], ["Kundennummer", editedCustomer.customerNumber||"–"]])}
       ${brandedCustomerBlock(editedCustomer)}
       ${brandedItemsTable(quote.items||[], true)}
       ${brandedTotals(totals, vatPct)}
-      <div style="font-size:11px;color:${BRAND.navy};margin-bottom:6px;">Dieses Angebot ist freibleibend und unverbindlich bis zum genannten Datum.</div>
+      <div style="font-size:11px;color:${BRAND.navy};margin-bottom:6px;">Dieses Angebot ist freibleibend und unverbindlich bis zum genannten Datum.<br>Mindestbestellwert: CHF 400.00.</div>
       ${brandedFooter()}
-    `;
-    setTimeout(()=> window.print(), 50);
-  });
+    `, "Angebot_" + quote.number);
 }
 
 /* ---------------- ARTIKEL ---------------- */
@@ -1957,11 +1952,13 @@ function openInvoiceView(inv){
   `;
   $("#modalFoot").innerHTML = `
     <button class="btn btn-danger" id="delInvBtn" style="margin-right:auto;">Löschen</button>
+    <button class="btn" id="editInvBtn">✎ Bearbeiten</button>
     <button class="btn" id="printBtn">🖨️ Drucken</button>
     <button class="btn btn-primary" id="closeInvBtn">Schliessen</button>
   `;
   openModal();
   $("#closeInvBtn").onclick = closeModal;
+  $("#editInvBtn").onclick = ()=> openInvoiceEditForm(inv);
   $("#delInvBtn").onclick = async ()=>{
     if(confirm("Diese Rechnung wirklich löschen?")){
       await dbDelete("invoices", inv.id);
@@ -1970,23 +1967,135 @@ function openInvoiceView(inv){
     }
   };
   $("#printBtn").onclick = ()=>{
-    openPrintPreviewModal("Rechnung", c, (editedCustomer)=>{
-      const vatPct = ((inv.vatRate!=null?inv.vatRate:VAT_RATE)*100).toFixed(1);
-      $("#printView").innerHTML = `
+    const vatPct = ((inv.vatRate!=null?inv.vatRate:VAT_RATE)*100).toFixed(1);
+    openPrintPreviewModal("Rechnung", c, (editedCustomer)=> `
         ${brandedHeader("RECHNUNG", [["Rechnung-Nr.", inv.number], ["Datum", fmtDate(inv.date)], ["Fällig", fmtDate(inv.dueDate)], ["Kundennummer", editedCustomer.customerNumber||"–"]])}
         ${brandedCustomerBlock(editedCustomer)}
         ${brandedItemsTable(inv.items||[], true)}
         ${brandedTotals(totals, vatPct)}
         <div style="font-size:11px;color:${BRAND.navy};margin-bottom:6px;"><strong>Zahlungskonditionen:</strong><br>Zahlbar innert 30 Tagen netto.<br>IBAN: CH19 0070 0113 2005 7366 3</div>
         ${brandedFooter()}
+      `, "Rechnung_" + inv.number);
+  };
+}
+
+function openInvoiceEditForm(inv){
+  let items = (inv.items||[]).map(it=>({...it}));
+  if(!items.length) items.push({articleId:"",name:"",qty:1,price:0});
+  const currentVatRate = inv.vatRate!=null ? inv.vatRate : VAT_RATE;
+
+  $("#modalTitle").textContent = "Rechnung " + inv.number + " bearbeiten";
+  $("#modalBody").innerHTML = `
+    <div class="form-grid3">
+      <div class="form-row"><label>Datum</label><input type="date" id="iv_date" value="${inv.date||todayISO()}"></div>
+      <div class="form-row"><label>Fällig am</label><input type="date" id="iv_due" value="${inv.dueDate||""}"></div>
+      <div class="form-row"><label>MWST-Satz (%)</label><input type="number" step="0.1" id="iv_vat" value="${(currentVatRate*100).toFixed(1)}"></div>
+    </div>
+    <div class="form-row">
+      <label>Artikel</label>
+      <div class="line-items" id="iv_lines">
+        <div class="line-item-row head"><div>Artikel</div><div>Menge</div><div>Preis</div><div>Total</div><div></div></div>
+      </div>
+      <button class="btn btn-sm add-line-btn" id="iv_addLine">+ Position</button>
+    </div>
+    <div style="text-align:right;font-weight:700;font-size:15px;margin-top:6px;">Total: <span id="iv_total">CHF 0.00</span></div>
+  `;
+  $("#modalFoot").innerHTML = `
+    <button class="btn" id="ivCancelBtn">Abbrechen</button>
+    <button class="btn btn-primary" id="ivSaveBtn">Speichern</button>
+  `;
+  openModal();
+
+  function renderLines(){
+    const wrap = $("#iv_lines");
+    wrap.querySelectorAll(".line-item-row:not(.head)").forEach(el=>el.remove());
+    items.forEach((it,idx)=>{
+      const row = document.createElement("div");
+      row.className = "line-item-row";
+      row.innerHTML = `
+        <select data-idx="${idx}" class="li-article">
+          <option value="">– frei –</option>
+          ${state.articles.map(a=>`<option value="${a.id}" ${it.articleId===a.id?"selected":""}>${esc(a.name)}</option>`).join("")}
+        </select>
+        <input type="number" min="0" step="1" class="li-qty" data-idx="${idx}" value="${it.qty}">
+        <input type="number" min="0" step="0.05" class="li-price" data-idx="${idx}" value="${it.price}">
+        <div class="num row-total" data-total-idx="${idx}" style="font-size:13px;">${fmtCHF((Number(it.qty)||0)*(Number(it.price)||0))}</div>
+        <button class="rm-line" data-idx="${idx}">✕</button>
       `;
-      setTimeout(()=> window.print(), 50);
+      wrap.appendChild(row);
     });
+    wrap.querySelectorAll(".li-article").forEach(sel=> sel.addEventListener("change", ()=>{
+      const idx = +sel.dataset.idx;
+      const art = articleById(sel.value);
+      if(art){ items[idx].articleId = art.id; items[idx].name = art.name; items[idx].price = art.price; }
+      else { items[idx].articleId = ""; }
+      renderLines();
+    }));
+    function updateRowTotal(idx){
+      const cell = wrap.querySelector('.row-total[data-total-idx="'+idx+'"]');
+      if(cell) cell.textContent = fmtCHF((Number(items[idx].qty)||0)*(Number(items[idx].price)||0));
+    }
+    wrap.querySelectorAll(".li-qty").forEach(inp=> inp.addEventListener("input", ()=>{ const idx=+inp.dataset.idx; items[idx].qty = parseFloat(inp.value)||0; updateRowTotal(idx); updateTotal(); }));
+    wrap.querySelectorAll(".li-price").forEach(inp=> inp.addEventListener("input", ()=>{ const idx=+inp.dataset.idx; items[idx].price = parseFloat(inp.value)||0; updateRowTotal(idx); updateTotal(); }));
+    wrap.querySelectorAll(".rm-line").forEach(btn=> btn.addEventListener("click", ()=>{ items.splice(+btn.dataset.idx,1); renderLines(); updateTotal(); }));
+    updateTotal();
+  }
+  function updateTotal(){
+    const total = items.reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.price)||0), 0);
+    $("#iv_total").textContent = fmtCHF(total);
+  }
+  $("#iv_addLine").addEventListener("click", ()=>{ items.push({articleId:"",name:"",qty:1,price:0}); renderLines(); });
+  renderLines();
+
+  $("#ivCancelBtn").onclick = ()=> openInvoiceView(inv);
+  $("#ivSaveBtn").onclick = async ()=>{
+    const cleanItems = items.filter(it=> (it.name||articleById(it.articleId)?.name) && (Number(it.qty)>0));
+    if(!cleanItems.length){ toast("Bitte mindestens eine Position mit Menge angeben."); return; }
+    const data = {
+      date: $("#iv_date").value || todayISO(),
+      dueDate: $("#iv_due").value || null,
+      vatRate: (parseFloat($("#iv_vat").value)||0) / 100,
+      items: cleanItems.map(it=>({articleId:it.articleId||null, name:it.name||articleById(it.articleId)?.name||"Artikel", qty:Number(it.qty)||0, price:Number(it.price)||0})),
+    };
+    await dbUpdate("invoices", inv.id, data);
+    toast("Rechnung aktualisiert.");
+    const updated = state.invoices.find(i=>i.id===inv.id) || {...inv, ...data};
+    openInvoiceView(updated);
   };
 }
 
 /* ---------------- MODAL ---------------- */
-function openPrintPreviewModal(title, customer, onConfirm){
+async function downloadPdfFromPrintView(filename){
+  const el = $("#printView");
+  const prevCss = el.style.cssText;
+  el.style.cssText = "display:block; position:fixed; left:-9999px; top:0; width:794px; background:#fff;";
+  try{
+    const canvas = await html2canvas(el, {scale:2, backgroundColor:"#ffffff", windowWidth:794});
+    const imgData = canvas.toDataURL("image/png");
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({unit:"mm", format:"a4"});
+    const pageWidth = 210, pageHeight = 297;
+    const imgWidth = pageWidth;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    let heightLeft = imgHeight;
+    let position = 0;
+    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    while(heightLeft > 0){
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+    pdf.save(filename);
+  }catch(err){
+    toast("PDF-Erstellung fehlgeschlagen.");
+  }finally{
+    el.style.cssText = prevCss;
+  }
+}
+
+function openPrintPreviewModal(title, customer, buildHtml, filenameBase){
   $("#modalTitle").textContent = title + " – Angaben vor Druck prüfen";
   $("#modalBody").innerHTML = `
     <div class="empty-hint" style="padding:0 0 12px;">Für Spezialfälle: Angaben hier nur für dieses Dokument anpassen. Der Kundendatensatz bleibt unverändert.</div>
@@ -1997,19 +2106,36 @@ function openPrintPreviewModal(title, customer, onConfirm){
       <div class="form-row"><label>Ort</label><input id="pp_ort" value="${esc(customer.ort||"")}"></div>
     </div>
   `;
-  $("#modalFoot").innerHTML = `<button class="btn" id="ppCancelBtn">Abbrechen</button><button class="btn btn-primary" id="ppPrintBtn">🖨️ Weiter zum Druck</button>`;
+  $("#modalFoot").innerHTML = `
+    <button class="btn" id="ppCancelBtn">Abbrechen</button>
+    <button class="btn" id="ppPrintBtn">🖨️ Drucken</button>
+    <button class="btn btn-primary" id="ppPdfBtn">⬇️ PDF herunterladen</button>
+  `;
   openModal();
   $("#ppCancelBtn").onclick = closeModal;
-  $("#ppPrintBtn").onclick = ()=>{
-    const edited = {
+  function getEdited(){
+    return {
       ...customer,
       name: $("#pp_name").value.trim(),
       street: $("#pp_street").value.trim(),
       zip: $("#pp_zip").value.trim(),
       ort: $("#pp_ort").value.trim(),
     };
+  }
+  $("#ppPrintBtn").onclick = ()=>{
+    const edited = getEdited();
+    $("#printView").innerHTML = buildHtml(edited);
     closeModal();
-    onConfirm(edited);
+    setTimeout(()=> window.print(), 50);
+  };
+  $("#ppPdfBtn").onclick = async ()=>{
+    const edited = getEdited();
+    $("#printView").innerHTML = buildHtml(edited);
+    const btn = $("#ppPdfBtn");
+    btn.disabled = true; btn.textContent = "Erstelle PDF …";
+    await downloadPdfFromPrintView((filenameBase||title) + ".pdf");
+    closeModal();
+    toast("PDF heruntergeladen.");
   };
 }
 
