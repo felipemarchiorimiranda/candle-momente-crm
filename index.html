@@ -479,7 +479,9 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
 
     <!-- STATISTIK -->
     <section class="view" id="view-statistik">
-      <h2 class="view-title">Statistik <small>Einnahmen &amp; Ausgaben</small></h2>
+      <h2 class="view-title"><span>Statistik <small>Einnahmen &amp; Ausgaben</small></span>
+        <select class="filter" id="statYearFilter"></select>
+      </h2>
       <div class="stat-grid" id="statStatGrid"></div>
       <div class="card card-pad" style="margin-bottom:16px;">
         <div class="panel-title">Letzte 6 Monate</div>
@@ -1817,20 +1819,36 @@ function openExpenseForm(expense){
 }
 
 /* ---------------- STATISTIK ---------------- */
+function populateStatYearFilter(){
+  const sel = $("#statYearFilter");
+  const currentYear = new Date().getFullYear();
+  const years = new Set([currentYear]);
+  state.invoices.forEach(i=> { if(i.date) years.add(parseInt(i.date.slice(0,4),10)); });
+  state.orders.forEach(o=> { if(o.date) years.add(parseInt(o.date.slice(0,4),10)); });
+  const sorted = Array.from(years).sort((a,b)=>b-a);
+  const current = sel.value ? parseInt(sel.value,10) : currentYear;
+  sel.innerHTML = sorted.map(y=>`<option value="${y}">${y}</option>`).join("");
+  sel.value = sorted.includes(current) ? current : currentYear;
+}
 function renderStatistik(){
+  populateStatYearFilter();
+  const selectedYear = parseInt($("#statYearFilter").value,10) || new Date().getFullYear();
+
   const paidInvoices = state.invoices.filter(i=>i.paymentStatus==="bezahlt");
   const totalIncome = paidInvoices.reduce((s,i)=>s+invoiceTotals(i).total,0);
   const totalExpense = state.expenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
   const profit = totalIncome - totalExpense;
-  const currentYear = new Date().getFullYear();
-  const incomeThisYear = paidInvoices.filter(i=>(i.paidDate||i.date||"").startsWith(String(currentYear))).reduce((s,i)=>s+invoiceTotals(i).total,0);
+  // year attribution uses the invoice date (Rechnungsdatum), not the payment date,
+  // so moving an invoice's date to another year moves its revenue with it
+  const incomeSelectedYear = paidInvoices.filter(i=>(i.date||"").startsWith(String(selectedYear))).reduce((s,i)=>s+invoiceTotals(i).total,0);
+  const expenseSelectedYear = state.expenses.filter(e=>(e.date||"").startsWith(String(selectedYear))).reduce((s,e)=>s+(Number(e.amount)||0),0);
 
-  let soldAllTime = 0, soldThisYear = 0;
+  let soldAllTime = 0, soldSelectedYear = 0;
   state.orders.forEach(o=>{
-    const isThisYear = (o.date||"").startsWith(String(currentYear));
+    const isSelectedYear = (o.date||"").startsWith(String(selectedYear));
     (o.items||[]).forEach(it=>{
       soldAllTime += Number(it.qty)||0;
-      if(isThisYear) soldThisYear += Number(it.qty)||0;
+      if(isSelectedYear) soldSelectedYear += Number(it.qty)||0;
     });
   });
 
@@ -1848,13 +1866,13 @@ function renderStatistik(){
   const totalArticleCost = articleRows.reduce((s,r)=>s+r.cost,0);
 
   $("#statStatGrid").innerHTML = [
-    {label:"Umsatz aktuelles Jahr", value: fmtCHF(incomeThisYear), sub: currentYear},
+    {label:`Umsatz ${selectedYear}`, value: fmtCHF(incomeSelectedYear), sub: "nach Rechnungsdatum"},
     {label:"Umsatz alle Jahre", value: fmtCHF(totalIncome), sub: paidInvoices.length + " Rechnungen"},
-    {label:"Verkaufte Artikel (Jahr)", value: soldThisYear, sub: currentYear},
+    {label:`Verkaufte Artikel ${selectedYear}`, value: soldSelectedYear, sub: "nach Bestelldatum"},
     {label:"Verkaufte Artikel (gesamt)", value: soldAllTime, sub: "alle Bestellungen"},
     {label:"Gesamtaufwand Artikel", value: fmtCHF(totalArticleCost), sub: "Aufwand × verkaufte Menge"},
-    {label:"Ausgaben (Material etc.)", value: fmtCHF(totalExpense), sub: state.expenses.length + " Einträge"},
-    {label:"Gewinn", value: fmtCHF(profit), sub: profit>=0 ? "positiv" : "negativ"},
+    {label:`Ausgaben ${selectedYear}`, value: fmtCHF(expenseSelectedYear), sub: state.expenses.filter(e=>(e.date||"").startsWith(String(selectedYear))).length + " Einträge"},
+    {label:"Gewinn (alle Jahre)", value: fmtCHF(profit), sub: profit>=0 ? "positiv" : "negativ"},
   ].map(s=>`
     <div class="stat-card">
       <div class="label">${esc(s.label)}</div>
@@ -1899,6 +1917,7 @@ function renderStatistik(){
       <td class="num" style="color:${(totalArticleRevenue-totalArticleCost)>=0?'var(--green)':'var(--red)'};">${fmtCHF(totalArticleRevenue-totalArticleCost)}</td>
     </tr>` : "";
 }
+$("#statYearFilter").addEventListener("change", renderStatistik);
 
 async function createInvoiceFromOrder(order){
   if(!order) return;
@@ -2068,7 +2087,7 @@ function openInvoiceEditForm(inv){
 async function downloadPdfFromPrintView(filename){
   const el = $("#printView");
   const prevCss = el.style.cssText;
-  el.style.cssText = "display:block; position:fixed; left:-9999px; top:0; width:794px; background:#fff;";
+  el.style.cssText = "display:block; position:fixed; left:-9999px; top:0; width:794px; background:#fff; padding:48px; box-sizing:border-box;";
   try{
     const canvas = await html2canvas(el, {scale:2, backgroundColor:"#ffffff", windowWidth:794});
     const imgData = canvas.toDataURL("image/png");
