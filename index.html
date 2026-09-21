@@ -103,6 +103,10 @@ h2.view-title small{font-size:12px;font-weight:400;color:var(--text-soft);}
 
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px;}
 .stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);}
+.stat-card.clickable{cursor:pointer;transition:.15s;}
+.stat-card.clickable:hover{border-color:var(--navy);transform:translateY(-1px);}
+.mini-row.clickable{cursor:pointer;border-radius:6px;}
+.mini-row.clickable:hover{background:var(--beige-light);}
 .stat-card .label{font-size:12px;color:var(--text-soft);font-weight:600;text-transform:uppercase;letter-spacing:.03em;}
 .stat-card .value{font-size:26px;font-weight:700;margin-top:4px;color:var(--navy);}
 .stat-card .sub{font-size:12px;color:var(--text-soft);margin-top:2px;}
@@ -240,6 +244,7 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
 .empty-state .big{font-size:32px;margin-bottom:8px;}
 
 .print-view{display:none;}
+@page{ size: A4 portrait; margin: 14mm; }
 @media print{
   body *{visibility:hidden;}
   .print-view, .print-view *{visibility:visible;}
@@ -314,12 +319,12 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
     <section class="view" id="view-kunden">
       <h2 class="view-title">Kunden <span></span></h2>
       <div class="toolbar">
-        <input class="search-input" id="kundenSearch" placeholder="Kunde, Ort oder E-Mail suchen …">
+        <input class="search-input" id="kundenSearch" placeholder="Kundennr., Kunde, Ort oder E-Mail suchen …">
         <button class="btn btn-primary" id="newKundeBtn">+ Neuer Kunde</button>
       </div>
       <div class="card">
         <table>
-          <thead><tr><th>Firma / Name</th><th>Ansprechpartner</th><th>Ort</th><th>Kontakt</th><th class="num">Umsatz</th></tr></thead>
+          <thead><tr><th>Kundennr.</th><th>Firma / Name</th><th>Ansprechpartner</th><th>Ort</th><th>Kontakt</th><th class="num">Umsatz</th></tr></thead>
           <tbody id="kundenTableBody"></tbody>
         </table>
       </div>
@@ -363,6 +368,7 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
         <input class="search-input" id="angeboteSearch" placeholder="Kunde oder Angebotsnr. suchen …">
         <select class="filter" id="angeboteStatusFilter">
           <option value="">Alle Status</option>
+          <option value="__open__">Offen (Entwurf/Gesendet)</option>
           <option value="entwurf">Entwurf</option>
           <option value="gesendet">Gesendet</option>
           <option value="angenommen">Angenommen</option>
@@ -385,16 +391,17 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
         <input class="search-input" id="bestellungenSearch" placeholder="Kunde oder Auftragsnr. suchen …">
         <select class="filter" id="bestellungenStatusFilter">
           <option value="">Alle Status</option>
+          <option value="__open__">Offen (alle unerledigten)</option>
+          <option value="__not_delivered__">Noch nicht geliefert</option>
           <option value="offen">Offen</option>
           <option value="in_bearbeitung">In Bearbeitung</option>
           <option value="geliefert">Geliefert</option>
-          <option value="abgeschlossen">Abgeschlossen</option>
         </select>
         <button class="btn btn-primary" id="newBestellungBtn">+ Neue Bestellung</button>
       </div>
       <div class="card">
         <table>
-          <thead><tr><th>Nr.</th><th>Kunde</th><th>Datum</th><th>Liefertermin</th><th class="num">Betrag</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Nr.</th><th>Kunde</th><th>Datum</th><th>Liefertermin</th><th class="num">Betrag</th><th class="num">Marge</th><th>Status</th><th></th></tr></thead>
           <tbody id="bestellungenTableBody"></tbody>
         </table>
       </div>
@@ -405,11 +412,20 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
       <h2 class="view-title">Artikel</h2>
       <div class="toolbar">
         <input class="search-input" id="artikelSearch" placeholder="Artikel suchen …">
+        <select class="filter" id="artikelKategorieFilter">
+          <option value="">Alle Kategorien</option>
+        </select>
+        <select class="filter" id="artikelSort">
+          <option value="name">Sortierung: Name</option>
+          <option value="category">Sortierung: Kategorie</option>
+          <option value="price">Sortierung: Preis</option>
+          <option value="sold">Sortierung: Meistverkauft</option>
+        </select>
         <button class="btn btn-primary" id="newArtikelBtn">+ Neuer Artikel</button>
       </div>
       <div class="card">
         <table>
-          <thead><tr><th>Artikel</th><th>Kategorie</th><th class="num">Preis</th><th>Einheit</th><th class="num">Verkauft</th><th></th></tr></thead>
+          <thead><tr><th>Artikel</th><th>Kategorie</th><th class="num">Preis</th><th class="num">Aufwand</th><th class="num">Marge</th><th>Einheit</th><th class="num">Verkauft</th><th></th></tr></thead>
           <tbody id="artikelTableBody"></tbody>
         </table>
       </div>
@@ -422,6 +438,7 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
         <input class="search-input" id="rechnungenSearch" placeholder="Kunde oder Rechnungsnr. suchen …">
         <select class="filter" id="rechnungenStatusFilter">
           <option value="">Alle Status</option>
+          <option value="__open__">Offen (inkl. überfällig)</option>
           <option value="offen">Offen</option>
           <option value="bezahlt">Bezahlt</option>
           <option value="ueberfaellig">Überfällig</option>
@@ -462,11 +479,19 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
     <section class="view" id="view-statistik">
       <h2 class="view-title">Statistik <small>Einnahmen &amp; Ausgaben</small></h2>
       <div class="stat-grid" id="statStatGrid"></div>
-      <div class="card card-pad">
+      <div class="card card-pad" style="margin-bottom:16px;">
         <div class="panel-title">Letzte 6 Monate</div>
         <table>
           <thead><tr><th>Monat</th><th class="num">Einnahmen</th><th class="num">Ausgaben</th><th class="num">Gewinn</th></tr></thead>
           <tbody id="statMonthlyBody"></tbody>
+        </table>
+      </div>
+      <div class="card card-pad">
+        <div class="panel-title">Aufwand &amp; Umsatz pro Artikel <small style="font-weight:400;color:var(--text-soft);">gesamthaft, alle Bestellungen</small></div>
+        <table>
+          <thead><tr><th>Artikel</th><th class="num">Verkauft</th><th class="num">Umsatz</th><th class="num">Aufwand</th><th class="num">Marge</th></tr></thead>
+          <tbody id="statArticleBody"></tbody>
+          <tfoot id="statArticleFoot"></tfoot>
         </table>
       </div>
     </section>
@@ -512,11 +537,11 @@ const fmtDate = (iso) => { if(!iso) return "–"; const d = new Date(iso); if(is
 const todayISO = () => new Date().toISOString().slice(0,10);
 const uid = () => Math.random().toString(36).slice(2,10);
 
-const STATUS_ORDER = {offen:"Offen", in_bearbeitung:"In Bearbeitung", geliefert:"Geliefert", abgeschlossen:"Abgeschlossen"};
+const STATUS_ORDER = {offen:"Offen", in_bearbeitung:"In Bearbeitung", geliefert:"Geliefert"};
 const STATUS_PAY = {offen:"Offen", bezahlt:"Bezahlt", ueberfaellig:"Überfällig"};
 const STATUS_QUOTE = {entwurf:"Entwurf", gesendet:"Gesendet", angenommen:"Angenommen", abgelehnt:"Abgelehnt"};
 const QUOTE_BADGE_CLASS = {entwurf:"offen", gesendet:"in_bearbeitung", angenommen:"geliefert", abgelehnt:"ueberfaellig"};
-const VAT_RATE = 0.081;
+const VAT_RATE = 0;
 
 function toast(msg){
   const t = $("#toast");
@@ -558,8 +583,8 @@ let canWrite = true;
 
 // JS(camelCase) <-> DB(snake_case) column maps per table
 const COLMAP = {
-  customers: {name:"name", contact:"contact", street:"street", zip:"zip", ort:"ort", phone:"phone", email:"email", notes:"notes", files:"files", createdAt:"created_at"},
-  articles:  {name:"name", category:"category", price:"price", unit:"unit", createdAt:"created_at"},
+  customers: {name:"name", customerNumber:"customer_number", contact:"contact", street:"street", zip:"zip", ort:"ort", phone:"phone", email:"email", notes:"notes", files:"files", createdAt:"created_at"},
+  articles:  {name:"name", category:"category", price:"price", cost:"cost", unit:"unit", createdAt:"created_at"},
   orders:    {number:"number", customerId:"customer_id", date:"date", status:"status", items:"items", notes:"notes", invoiceId:"invoice_id", lieferscheinNumber:"lieferschein_number", lieferscheinDate:"lieferschein_date", plannedDeliveryDate:"planned_delivery_date", createdAt:"created_at"},
   invoices:  {number:"number", orderId:"order_id", customerId:"customer_id", date:"date", dueDate:"due_date", items:"items", vatRate:"vat_rate", paymentStatus:"payment_status", paidDate:"paid_date", createdAt:"created_at"},
   tasks:     {customerId:"customer_id", type:"type", text:"text", dueDate:"due_date", done:"done", createdAt:"created_at"},
@@ -659,6 +684,12 @@ function orderById(id){ return state.orders.find(o=>o.id===id); }
 
 function orderTotal(order){
   return (order.items||[]).reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.price)||0), 0);
+}
+function orderCost(order){
+  return (order.items||[]).reduce((s,it)=>{
+    const art = it.articleId ? articleById(it.articleId) : null;
+    return s + (Number(it.qty)||0)*(Number(art && art.cost)||0);
+  }, 0);
 }
 function invoiceTotals(inv){
   const subtotal = (inv.items||[]).reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.price)||0), 0);
@@ -769,14 +800,16 @@ async function openLieferscheinView(order){
     order = {...order, lieferscheinNumber:number, lieferscheinDate:lsDate};
   }
   const c = customerById(order.customerId) || {};
-  $("#printView").innerHTML = `
-    ${brandedHeader("LIEFERSCHEIN", [["Lieferschein-Nr.", order.lieferscheinNumber], ["Datum", fmtDate(order.lieferscheinDate||todayISO())], ["Bestellung", order.number||""]])}
-    ${brandedCustomerBlock(c)}
-    ${brandedItemsTable(order.items||[], false)}
-    ${brandedSignature()}
-    ${brandedFooter()}
-  `;
-  setTimeout(()=> window.print(), 50);
+  openPrintPreviewModal("Lieferschein", c, (editedCustomer)=>{
+    $("#printView").innerHTML = `
+      ${brandedHeader("LIEFERSCHEIN", [["Lieferschein-Nr.", order.lieferscheinNumber], ["Datum", fmtDate(order.lieferscheinDate||todayISO())], ["Bestellung", order.number||""], ["Kundennummer", editedCustomer.customerNumber||"–"]])}
+      ${brandedCustomerBlock(editedCustomer)}
+      ${brandedItemsTable(order.items||[], false)}
+      ${brandedSignature()}
+      ${brandedFooter()}
+    `;
+    setTimeout(()=> window.print(), 50);
+  });
 }
 
 function customerRevenue(customerId){
@@ -792,6 +825,10 @@ function nextLieferscheinNumber(){
   const year = new Date().getFullYear();
   const count = state.orders.filter(o => (o.lieferscheinNumber||"").startsWith("LS-"+year)).length;
   return "LS-" + year + "-" + String(count+1).padStart(3,"0");
+}
+function nextCustomerNumber(){
+  const count = state.customers.filter(c => (c.customerNumber||"").startsWith("K-")).length;
+  return "K-" + String(count+1).padStart(4,"0");
 }
 function refreshOverdueInvoices(){
   const today = todayISO();
@@ -838,7 +875,7 @@ function renderDashboard(){
   $("#dashDate").textContent = new Date().toLocaleDateString('de-CH',{weekday:'long', year:'numeric', month:'long', day:'numeric'});
 
   const openOrders = state.orders.filter(o=>o.status==="offen" || o.status==="in_bearbeitung");
-  const openDeliveries = state.orders.filter(o=>o.status!=="geliefert" && o.status!=="abgeschlossen");
+  const openDeliveries = state.orders.filter(o=>o.status!=="geliefert");
   const openInvoices = state.invoices.filter(i=>i.paymentStatus==="offen" || i.paymentStatus==="ueberfaellig");
   const openQuotes = state.quotes.filter(q=>q.status==="entwurf" || q.status==="gesendet");
   const revenuePaid = state.invoices.filter(i=>i.paymentStatus==="bezahlt").reduce((s,i)=>s+invoiceTotals(i).total,0);
@@ -847,37 +884,51 @@ function renderDashboard(){
   const profit = revenuePaid - totalExpense;
 
   const stats = [
-    {label:"Offene Angebote", value: openQuotes.length, sub: state.quotes.length + " total"},
-    {label:"Offene Bestellungen", value: openOrders.length, sub: state.orders.length + " total"},
-    {label:"Offene Lieferungen", value: openDeliveries.length, sub:"noch zu liefern"},
-    {label:"Offene Rechnungen", value: openInvoices.length, sub: fmtCHF(revenueOpen)},
-    {label:"Umsatz (bezahlt)", value: fmtCHF(revenuePaid), sub: state.invoices.length + " Rechnungen total"},
-    {label:"Ausgaben", value: fmtCHF(totalExpense), sub: state.expenses.length + " Einträge"},
-    {label:"Gewinn", value: fmtCHF(profit), sub: profit>=0 ? "positiv" : "negativ"},
+    {label:"Offene Angebote", value: openQuotes.length, sub: state.quotes.length + " total", nav:{tab:"angebote", filterEl:"angeboteStatusFilter", filterVal:"__open__"}},
+    {label:"Offene Bestellungen", value: openOrders.length, sub: state.orders.length + " total", nav:{tab:"bestellungen", filterEl:"bestellungenStatusFilter", filterVal:"__open__"}},
+    {label:"Offene Lieferungen", value: openDeliveries.length, sub:"noch zu liefern", nav:{tab:"bestellungen", filterEl:"bestellungenStatusFilter", filterVal:"__not_delivered__"}},
+    {label:"Offene Rechnungen", value: openInvoices.length, sub: fmtCHF(revenueOpen), nav:{tab:"rechnungen", filterEl:"rechnungenStatusFilter", filterVal:"__open__"}},
+    {label:"Umsatz (bezahlt)", value: fmtCHF(revenuePaid), sub: state.invoices.length + " Rechnungen total", nav:{tab:"rechnungen", filterEl:"rechnungenStatusFilter", filterVal:"bezahlt"}},
+    {label:"Ausgaben", value: fmtCHF(totalExpense), sub: state.expenses.length + " Einträge", nav:{tab:"ausgaben"}},
+    {label:"Gewinn", value: fmtCHF(profit), sub: profit>=0 ? "positiv" : "negativ", nav:{tab:"statistik"}},
   ];
-  $("#statGrid").innerHTML = stats.map(s=>`
-    <div class="stat-card">
+  $("#statGrid").innerHTML = stats.map((s,i)=>`
+    <div class="stat-card clickable" data-navidx="${i}">
       <div class="label">${esc(s.label)}</div>
       <div class="value">${s.value}</div>
       <div class="sub">${esc(s.sub)}</div>
     </div>`).join("");
+  $$("#statGrid [data-navidx]").forEach(card=>{
+    card.addEventListener("click", ()=>{
+      const nav = stats[+card.dataset.navidx].nav;
+      if(!nav) return;
+      showTab(nav.tab);
+      if(nav.filterEl){
+        const el = document.getElementById(nav.filterEl);
+        if(el) el.value = nav.filterVal;
+      }
+      renderAll();
+    });
+  });
 
   renderIncomeExpensePanel(revenuePaid, totalExpense);
 
   $("#dashOpenOrders").innerHTML = openOrders.length ? openOrders.slice(0,6).map(o=>`
-    <div class="mini-row">
+    <div class="mini-row clickable" data-order="${o.id}">
       <span class="name">${esc(o.number||"–")} · ${esc(customerName(o.customerId))}</span>
       <span class="badge badge-${o.status}">${STATUS_ORDER[o.status]||o.status}</span>
     </div>`).join("") : `<div class="empty-hint">Keine offenen Bestellungen 🎉</div>`;
+  $$("#dashOpenOrders [data-order]").forEach(row=> row.addEventListener("click", ()=>{ showTab("bestellungen"); openOrderForm(orderById(row.dataset.order)); }));
 
   const today = todayISO();
   $("#dashOpenDeliveries").innerHTML = openDeliveries.length ? openDeliveries.slice().sort((a,b)=>(a.plannedDeliveryDate||"9999").localeCompare(b.plannedDeliveryDate||"9999")).slice(0,6).map(o=>{
     const overdue = o.plannedDeliveryDate && o.plannedDeliveryDate < today;
-    return `<div class="mini-row">
+    return `<div class="mini-row clickable" data-order="${o.id}">
       <span class="name">${esc(o.number||"–")} · ${esc(customerName(o.customerId))}</span>
       <span class="amt" style="${overdue?'color:var(--red);':''}">${o.plannedDeliveryDate ? fmtDate(o.plannedDeliveryDate) : "kein Termin"}</span>
     </div>`;
   }).join("") : `<div class="empty-hint">Alles geliefert 🎉</div>`;
+  $$("#dashOpenDeliveries [data-order]").forEach(row=> row.addEventListener("click", ()=>{ showTab("bestellungen"); openOrderForm(orderById(row.dataset.order)); }));
 
   const revByCustomer = {};
   state.invoices.filter(i=>i.paymentStatus==="bezahlt").forEach(i=>{
@@ -885,8 +936,9 @@ function renderDashboard(){
   });
   const topCustomers = Object.entries(revByCustomer).sort((a,b)=>b[1]-a[1]).slice(0,6);
   $("#dashTopCustomers").innerHTML = topCustomers.length ? topCustomers.map(([cid,amt])=>`
-    <div class="mini-row"><span class="name">${esc(customerName(cid))}</span><span class="amt">${fmtCHF(amt)}</span></div>
+    <div class="mini-row clickable" data-customer="${cid}"><span class="name">${esc(customerName(cid))}</span><span class="amt">${fmtCHF(amt)}</span></div>
   `).join("") : `<div class="empty-hint">Noch keine bezahlten Rechnungen</div>`;
+  $$("#dashTopCustomers [data-customer]").forEach(row=> row.addEventListener("click", ()=>{ showTab("kunden"); openKundeDetail(row.dataset.customer); }));
 
   const qtyByArticle = {};
   state.orders.forEach(o=> (o.items||[]).forEach(it=>{
@@ -894,8 +946,13 @@ function renderDashboard(){
   }));
   const topArticles = Object.entries(qtyByArticle).sort((a,b)=>b[1]-a[1]).slice(0,6);
   $("#dashTopArticles").innerHTML = topArticles.length ? topArticles.map(([name,qty])=>`
-    <div class="mini-row"><span class="name">${esc(name)}</span><span class="amt">${qty} Stk</span></div>
+    <div class="mini-row clickable" data-article="${esc(name)}"><span class="name">${esc(name)}</span><span class="amt">${qty} Stk</span></div>
   `).join("") : `<div class="empty-hint">Noch keine Bestellungen erfasst</div>`;
+  $$("#dashTopArticles [data-article]").forEach(row=> row.addEventListener("click", ()=>{
+    showTab("artikel");
+    $("#artikelSearch").value = row.dataset.article;
+    renderArtikel();
+  }));
 }
 
 function customerName(id){
@@ -938,15 +995,16 @@ function renderKundenList(){
   const q = ($("#kundenSearch").value||"").toLowerCase();
   const rows = state.customers.filter(c=>{
     if(!q) return true;
-    return [c.name,c.ort,c.email,c.contact].some(v=> (v||"").toLowerCase().includes(q));
+    return [c.name,c.ort,c.email,c.contact,c.customerNumber].some(v=> (v||"").toLowerCase().includes(q));
   }).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
 
   if(!rows.length){
-    $("#kundenTableBody").innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="big">👤</div>Keine Kunden gefunden.</div></td></tr>`;
+    $("#kundenTableBody").innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="big">👤</div>Keine Kunden gefunden.</div></td></tr>`;
     return;
   }
   $("#kundenTableBody").innerHTML = rows.map(c=>`
     <tr class="clickable" data-id="${c.id}">
+      <td>${esc(c.customerNumber||"–")}</td>
       <td><strong>${esc(c.name)}</strong></td>
       <td>${esc(c.contact||"–")}</td>
       <td>${esc(c.zip||"")} ${esc(c.ort||"")}</td>
@@ -962,10 +1020,13 @@ $("#newKundeBtn").addEventListener("click", ()=> openCustomerForm());
 
 function openCustomerForm(customer){
   const isEdit = !!customer;
-  customer = customer || {name:"",contact:"",street:"",zip:"",ort:"",phone:"",email:"",notes:""};
+  customer = customer || {name:"",customerNumber:nextCustomerNumber(),contact:"",street:"",zip:"",ort:"",phone:"",email:"",notes:""};
   $("#modalTitle").textContent = isEdit ? "Kunde bearbeiten" : "Neuer Kunde";
   $("#modalBody").innerHTML = `
-    <div class="form-row"><label>Firma / Name *</label><input id="f_name" value="${esc(customer.name)}"></div>
+    <div class="form-grid2">
+      <div class="form-row"><label>Firma / Name *</label><input id="f_name" value="${esc(customer.name)}"></div>
+      <div class="form-row"><label>Kundennummer</label><input id="f_customerNumber" value="${esc(customer.customerNumber||"")}"></div>
+    </div>
     <div class="form-row"><label>Ansprechpartner</label><input id="f_contact" value="${esc(customer.contact)}"></div>
     <div class="form-row"><label>Strasse</label><input id="f_street" value="${esc(customer.street)}"></div>
     <div class="form-grid2">
@@ -999,7 +1060,8 @@ function openCustomerForm(customer){
     const name = $("#f_name").value.trim();
     if(!name){ toast("Bitte einen Namen angeben."); return; }
     const data = {
-      name, contact:$("#f_contact").value.trim(), street:$("#f_street").value.trim(),
+      name, customerNumber:$("#f_customerNumber").value.trim(),
+      contact:$("#f_contact").value.trim(), street:$("#f_street").value.trim(),
       zip:$("#f_zip").value.trim(), ort:$("#f_ort").value.trim(),
       phone:$("#f_phone").value.trim(), email:$("#f_email").value.trim(),
       notes:$("#f_notes").value.trim(),
@@ -1036,6 +1098,7 @@ function renderKundeDetail(id){
 
   $("#kdInfoCard").innerHTML = `
     <h3>${esc(c.name)}</h3>
+    <div class="muted" style="font-weight:600;">${esc(c.customerNumber||"–")}</div>
     ${c.contact?`<div class="muted">${esc(c.contact)}</div>`:""}
     <div style="height:6px;"></div>
     ${c.street?`<div>${esc(c.street)}</div>`:""}
@@ -1150,18 +1213,21 @@ function renderBestellungen(){
   const q = ($("#bestellungenSearch").value||"").toLowerCase();
   const statusF = $("#bestellungenStatusFilter").value;
   let rows = state.orders.filter(o=>{
-    if(statusF && o.status!==statusF) return false;
+    if(statusF==="__open__" && !(o.status==="offen"||o.status==="in_bearbeitung")) return false;
+    else if(statusF==="__not_delivered__" && o.status==="geliefert") return false;
+    else if(statusF && statusF!=="__open__" && statusF!=="__not_delivered__" && o.status!==statusF) return false;
     if(!q) return true;
     return (o.number||"").toLowerCase().includes(q) || customerName(o.customerId).toLowerCase().includes(q);
   }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
 
   if(!rows.length){
-    $("#bestellungenTableBody").innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="big">📦</div>Keine Bestellungen gefunden.</div></td></tr>`;
+    $("#bestellungenTableBody").innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="big">📦</div>Keine Bestellungen gefunden.</div></td></tr>`;
     return;
   }
   const today = todayISO();
   $("#bestellungenTableBody").innerHTML = rows.map(o=>{
-    const overdue = o.plannedDeliveryDate && o.plannedDeliveryDate < today && o.status!=="geliefert" && o.status!=="abgeschlossen";
+    const overdue = o.plannedDeliveryDate && o.plannedDeliveryDate < today && o.status!=="geliefert";
+    const margin = orderTotal(o) - orderCost(o);
     return `
     <tr>
       <td class="clickable" data-open="${o.id}"><strong>${esc(o.number)}</strong></td>
@@ -1169,6 +1235,7 @@ function renderBestellungen(){
       <td class="clickable" data-open="${o.id}">${fmtDate(o.date)}</td>
       <td class="clickable" data-open="${o.id}" style="${overdue?'color:var(--red);font-weight:700;':''}">${o.plannedDeliveryDate ? fmtDate(o.plannedDeliveryDate) : "–"}${overdue?" ⚠":""}</td>
       <td class="num clickable" data-open="${o.id}">${fmtCHF(orderTotal(o))}</td>
+      <td class="num clickable" data-open="${o.id}" style="color:${margin>=0?'var(--green)':'var(--red)'};">${fmtCHF(margin)}</td>
       <td>
         <select class="status-select badge-${o.status}" data-statusof="${o.id}">
           ${Object.entries(STATUS_ORDER).map(([k,v])=>`<option value="${k}" ${o.status===k?"selected":""}>${v}</option>`).join("")}
@@ -1256,7 +1323,7 @@ function openOrderForm(order, presetCustomerId){
         </select>
         <input type="number" min="0" step="1" class="li-qty" data-idx="${idx}" value="${it.qty}">
         <input type="number" min="0" step="0.05" class="li-price" data-idx="${idx}" value="${it.price}">
-        <div class="num" style="font-size:13px;">${fmtCHF((Number(it.qty)||0)*(Number(it.price)||0))}</div>
+        <div class="num row-total" data-total-idx="${idx}" style="font-size:13px;">${fmtCHF((Number(it.qty)||0)*(Number(it.price)||0))}</div>
         <button class="rm-line" data-idx="${idx}">✕</button>
       `;
       wrap.appendChild(row);
@@ -1271,8 +1338,12 @@ function openOrderForm(order, presetCustomerId){
       else { items[idx].articleId = ""; }
       renderLines();
     }));
-    wrap.querySelectorAll(".li-qty").forEach(inp=> inp.addEventListener("input", ()=>{ items[+inp.dataset.idx].qty = parseFloat(inp.value)||0; updateTotal(); }));
-    wrap.querySelectorAll(".li-price").forEach(inp=> inp.addEventListener("input", ()=>{ items[+inp.dataset.idx].price = parseFloat(inp.value)||0; updateTotal(); }));
+    function updateRowTotal(idx){
+      const cell = wrap.querySelector('.row-total[data-total-idx="'+idx+'"]');
+      if(cell) cell.textContent = fmtCHF((Number(items[idx].qty)||0)*(Number(items[idx].price)||0));
+    }
+    wrap.querySelectorAll(".li-qty").forEach(inp=> inp.addEventListener("input", ()=>{ const idx=+inp.dataset.idx; items[idx].qty = parseFloat(inp.value)||0; updateRowTotal(idx); updateTotal(); }));
+    wrap.querySelectorAll(".li-price").forEach(inp=> inp.addEventListener("input", ()=>{ const idx=+inp.dataset.idx; items[idx].price = parseFloat(inp.value)||0; updateRowTotal(idx); updateTotal(); }));
     wrap.querySelectorAll(".rm-line").forEach(btn=> btn.addEventListener("click", ()=>{ items.splice(+btn.dataset.idx,1); renderLines(); updateTotal(); }));
     updateTotal();
   }
@@ -1324,7 +1395,8 @@ function renderAngebote(){
   const q = ($("#angeboteSearch").value||"").toLowerCase();
   const statusF = $("#angeboteStatusFilter").value;
   let rows = state.quotes.filter(o=>{
-    if(statusF && o.status!==statusF) return false;
+    if(statusF==="__open__" && !(o.status==="entwurf"||o.status==="gesendet")) return false;
+    else if(statusF && statusF!=="__open__" && o.status!==statusF) return false;
     if(!q) return true;
     return (o.number||"").toLowerCase().includes(q) || customerName(o.customerId).toLowerCase().includes(q);
   }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
@@ -1424,7 +1496,7 @@ function openQuoteForm(quote, presetCustomerId){
         </select>
         <input type="number" min="0" step="1" class="li-qty" data-idx="${idx}" value="${it.qty}">
         <input type="number" min="0" step="0.05" class="li-price" data-idx="${idx}" value="${it.price}">
-        <div class="num" style="font-size:13px;">${fmtCHF((Number(it.qty)||0)*(Number(it.price)||0))}</div>
+        <div class="num row-total" data-total-idx="${idx}" style="font-size:13px;">${fmtCHF((Number(it.qty)||0)*(Number(it.price)||0))}</div>
         <button class="rm-line" data-idx="${idx}">✕</button>
       `;
       wrap.appendChild(row);
@@ -1436,8 +1508,12 @@ function openQuoteForm(quote, presetCustomerId){
       else { items[idx].articleId = ""; }
       renderLines();
     }));
-    wrap.querySelectorAll(".li-qty").forEach(inp=> inp.addEventListener("input", ()=>{ items[+inp.dataset.idx].qty = parseFloat(inp.value)||0; updateTotal(); }));
-    wrap.querySelectorAll(".li-price").forEach(inp=> inp.addEventListener("input", ()=>{ items[+inp.dataset.idx].price = parseFloat(inp.value)||0; updateTotal(); }));
+    function updateRowTotal(idx){
+      const cell = wrap.querySelector('.row-total[data-total-idx="'+idx+'"]');
+      if(cell) cell.textContent = fmtCHF((Number(items[idx].qty)||0)*(Number(items[idx].price)||0));
+    }
+    wrap.querySelectorAll(".li-qty").forEach(inp=> inp.addEventListener("input", ()=>{ const idx=+inp.dataset.idx; items[idx].qty = parseFloat(inp.value)||0; updateRowTotal(idx); updateTotal(); }));
+    wrap.querySelectorAll(".li-price").forEach(inp=> inp.addEventListener("input", ()=>{ const idx=+inp.dataset.idx; items[idx].price = parseFloat(inp.value)||0; updateRowTotal(idx); updateTotal(); }));
     wrap.querySelectorAll(".rm-line").forEach(btn=> btn.addEventListener("click", ()=>{ items.splice(+btn.dataset.idx,1); renderLines(); updateTotal(); }));
     updateTotal();
   }
@@ -1463,6 +1539,8 @@ function openQuoteForm(quote, presetCustomerId){
     if(!customerId){ toast("Bitte einen Kunden wählen."); return; }
     const cleanItems = items.filter(it=> (it.name||articleById(it.articleId)?.name) && (Number(it.qty)>0));
     if(!cleanItems.length){ toast("Bitte mindestens eine Position mit Menge angeben."); return; }
+    const quoteTotal = cleanItems.reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.price)||0), 0);
+    if(quoteTotal < 400){ toast("Mindestbestellwert für Angebote ist CHF 400.00."); return; }
     const data = {
       customerId, date:$("#q_date").value||todayISO(), validUntil:$("#q_validUntil").value||null, status:$("#q_status").value,
       items: cleanItems.map(it=>({articleId:it.articleId||null, name:it.name||articleById(it.articleId)?.name||"Artikel", qty:Number(it.qty)||0, price:Number(it.price)||0})),
@@ -1504,15 +1582,17 @@ function openQuotePrintView(quote){
   const c = customerById(quote.customerId) || {};
   const totals = invoiceTotals(quote);
   const vatPct = (VAT_RATE*100).toFixed(1);
-  $("#printView").innerHTML = `
-    ${brandedHeader("ANGEBOT", [["Angebot-Nr.", quote.number], ["Datum", fmtDate(quote.date)], ["Gültig bis", quote.validUntil?fmtDate(quote.validUntil):"–"]])}
-    ${brandedCustomerBlock(c)}
-    ${brandedItemsTable(quote.items||[], true)}
-    ${brandedTotals(totals, vatPct)}
-    <div style="font-size:11px;color:${BRAND.navy};margin-bottom:6px;">Dieses Angebot ist freibleibend und unverbindlich bis zum genannten Datum.</div>
-    ${brandedFooter()}
-  `;
-  setTimeout(()=> window.print(), 50);
+  openPrintPreviewModal("Angebot", c, (editedCustomer)=>{
+    $("#printView").innerHTML = `
+      ${brandedHeader("ANGEBOT", [["Angebot-Nr.", quote.number], ["Datum", fmtDate(quote.date)], ["Gültig bis", quote.validUntil?fmtDate(quote.validUntil):"–"], ["Kundennummer", editedCustomer.customerNumber||"–"]])}
+      ${brandedCustomerBlock(editedCustomer)}
+      ${brandedItemsTable(quote.items||[], true)}
+      ${brandedTotals(totals, vatPct)}
+      <div style="font-size:11px;color:${BRAND.navy};margin-bottom:6px;">Dieses Angebot ist freibleibend und unverbindlich bis zum genannten Datum.</div>
+      ${brandedFooter()}
+    `;
+    setTimeout(()=> window.print(), 50);
+  });
 }
 
 /* ---------------- ARTIKEL ---------------- */
@@ -1523,39 +1603,81 @@ function articleSoldQty(articleId, name){
   }));
   return qty;
 }
+function articleStats(articleId, name, year){
+  let qty=0, revenue=0;
+  state.orders.forEach(o=>{
+    if(year && !(o.date||"").startsWith(String(year))) return;
+    (o.items||[]).forEach(it=>{
+      if((articleId && it.articleId===articleId) || (!articleId && it.name===name)){
+        qty += Number(it.qty)||0;
+        revenue += (Number(it.qty)||0)*(Number(it.price)||0);
+      }
+    });
+  });
+  const art = articleId ? articleById(articleId) : state.articles.find(a=>a.name===name);
+  const cost = qty * (Number(art && art.cost)||0);
+  return {qty, revenue, cost, margin: revenue-cost};
+}
+function populateArtikelKategorieFilter(){
+  const sel = $("#artikelKategorieFilter");
+  const current = sel.value;
+  const cats = Array.from(new Set(state.articles.map(a=>a.category).filter(Boolean))).sort();
+  sel.innerHTML = `<option value="">Alle Kategorien</option>` + cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
+  sel.value = cats.includes(current) ? current : "";
+}
 function renderArtikel(){
+  populateArtikelKategorieFilter();
   const q = ($("#artikelSearch").value||"").toLowerCase();
-  const rows = state.articles.filter(a=> !q || (a.name||"").toLowerCase().includes(q) || (a.category||"").toLowerCase().includes(q))
-    .sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const catF = $("#artikelKategorieFilter").value;
+  const sortBy = $("#artikelSort").value;
+  let rows = state.articles.filter(a=>{
+    if(catF && a.category!==catF) return false;
+    if(!q) return true;
+    return (a.name||"").toLowerCase().includes(q) || (a.category||"").toLowerCase().includes(q);
+  });
+  if(sortBy==="category") rows.sort((a,b)=>(a.category||"").localeCompare(b.category||"") || (a.name||"").localeCompare(b.name||""));
+  else if(sortBy==="price") rows.sort((a,b)=>(Number(b.price)||0)-(Number(a.price)||0));
+  else if(sortBy==="sold") rows.sort((a,b)=> articleSoldQty(b.id) - articleSoldQty(a.id));
+  else rows.sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+
   if(!rows.length){
-    $("#artikelTableBody").innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="big">🕯️</div>Keine Artikel gefunden.</div></td></tr>`;
+    $("#artikelTableBody").innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="big">🕯️</div>Keine Artikel gefunden.</div></td></tr>`;
     return;
   }
-  $("#artikelTableBody").innerHTML = rows.map(a=>`
+  $("#artikelTableBody").innerHTML = rows.map(a=>{
+    const stats = articleStats(a.id, a.name);
+    const margin = (Number(a.price)||0) - (Number(a.cost)||0);
+    return `
     <tr class="clickable" data-id="${a.id}">
       <td><strong>${esc(a.name)}</strong></td>
       <td>${esc(a.category||"–")}</td>
       <td class="num">${fmtCHF(a.price)}</td>
+      <td class="num">${fmtCHF(a.cost||0)}</td>
+      <td class="num" style="color:${margin>=0?'var(--green)':'var(--red)'};">${fmtCHF(margin)}</td>
       <td>${esc(a.unit||"Stk")}</td>
-      <td class="num">${articleSoldQty(a.id)}</td>
+      <td class="num">${stats.qty}</td>
       <td></td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
   $$("#artikelTableBody tr[data-id]").forEach(tr=> tr.addEventListener("click", ()=> openArticleForm(state.articles.find(a=>a.id===tr.dataset.id))));
 }
 $("#artikelSearch").addEventListener("input", renderArtikel);
+$("#artikelKategorieFilter").addEventListener("change", renderArtikel);
+$("#artikelSort").addEventListener("change", renderArtikel);
 $("#newArtikelBtn").addEventListener("click", ()=> openArticleForm());
 
 function openArticleForm(article){
   const isEdit = !!article;
-  article = article || {name:"",category:"",price:0,unit:"Stk"};
+  article = article || {name:"",category:"",price:0,cost:0,unit:"Stk"};
   $("#modalTitle").textContent = isEdit ? "Artikel bearbeiten" : "Neuer Artikel";
   $("#modalBody").innerHTML = `
     <div class="form-row"><label>Bezeichnung *</label><input id="a_name" value="${esc(article.name)}"></div>
     <div class="form-grid3">
       <div class="form-row"><label>Kategorie</label><input id="a_category" value="${esc(article.category)}"></div>
-      <div class="form-row"><label>Preis (CHF)</label><input type="number" step="0.05" id="a_price" value="${article.price}"></div>
+      <div class="form-row"><label>Verkaufspreis (CHF)</label><input type="number" step="0.05" id="a_price" value="${article.price}"></div>
       <div class="form-row"><label>Einheit</label><input id="a_unit" value="${esc(article.unit||"Stk")}"></div>
     </div>
+    <div class="form-row"><label>Aufwand pro Einheit (CHF)</label><input type="number" step="0.05" id="a_cost" value="${article.cost||0}"></div>
   `;
   $("#modalFoot").innerHTML = `
     ${isEdit ? `<button class="btn btn-danger" id="delBtn" style="margin-right:auto;">Löschen</button>`:""}
@@ -1576,7 +1698,7 @@ function openArticleForm(article){
   $("#saveBtn").onclick = async ()=>{
     const name = $("#a_name").value.trim();
     if(!name){ toast("Bitte eine Bezeichnung angeben."); return; }
-    const data = {name, category:$("#a_category").value.trim(), price:parseFloat($("#a_price").value)||0, unit:$("#a_unit").value.trim()||"Stk"};
+    const data = {name, category:$("#a_category").value.trim(), price:parseFloat($("#a_price").value)||0, cost:parseFloat($("#a_cost").value)||0, unit:$("#a_unit").value.trim()||"Stk"};
     if(isEdit) await dbUpdate("articles", article.id, data);
     else await dbAdd("articles", data);
     closeModal();
@@ -1589,7 +1711,8 @@ function renderRechnungen(){
   const q = ($("#rechnungenSearch").value||"").toLowerCase();
   const statusF = $("#rechnungenStatusFilter").value;
   let rows = state.invoices.filter(i=>{
-    if(statusF && i.paymentStatus!==statusF) return false;
+    if(statusF==="__open__" && !(i.paymentStatus==="offen"||i.paymentStatus==="ueberfaellig")) return false;
+    else if(statusF && statusF!=="__open__" && i.paymentStatus!==statusF) return false;
     if(!q) return true;
     return (i.number||"").toLowerCase().includes(q) || customerName(i.customerId).toLowerCase().includes(q);
   }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
@@ -1704,10 +1827,38 @@ function renderStatistik(){
   const totalIncome = paidInvoices.reduce((s,i)=>s+invoiceTotals(i).total,0);
   const totalExpense = state.expenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
   const profit = totalIncome - totalExpense;
+  const currentYear = new Date().getFullYear();
+  const incomeThisYear = paidInvoices.filter(i=>(i.paidDate||i.date||"").startsWith(String(currentYear))).reduce((s,i)=>s+invoiceTotals(i).total,0);
+
+  let soldAllTime = 0, soldThisYear = 0;
+  state.orders.forEach(o=>{
+    const isThisYear = (o.date||"").startsWith(String(currentYear));
+    (o.items||[]).forEach(it=>{
+      soldAllTime += Number(it.qty)||0;
+      if(isThisYear) soldThisYear += Number(it.qty)||0;
+    });
+  });
+
+  // aggregate cost/revenue per distinct article (by articleId, falling back to name for free-text items)
+  const artKeys = new Map(); // key -> {label, articleId, name}
+  state.orders.forEach(o=> (o.items||[]).forEach(it=>{
+    const key = it.articleId || ("name:"+it.name);
+    if(!artKeys.has(key)) artKeys.set(key, {articleId:it.articleId||null, name:it.name});
+  }));
+  const articleRows = Array.from(artKeys.values()).map(({articleId,name})=>{
+    const s = articleStats(articleId, name);
+    return {name, ...s};
+  }).sort((a,b)=> b.revenue - a.revenue);
+  const totalArticleRevenue = articleRows.reduce((s,r)=>s+r.revenue,0);
+  const totalArticleCost = articleRows.reduce((s,r)=>s+r.cost,0);
 
   $("#statStatGrid").innerHTML = [
-    {label:"Einnahmen (bezahlt)", value: fmtCHF(totalIncome), sub: paidInvoices.length + " Rechnungen"},
-    {label:"Ausgaben", value: fmtCHF(totalExpense), sub: state.expenses.length + " Einträge"},
+    {label:"Umsatz aktuelles Jahr", value: fmtCHF(incomeThisYear), sub: currentYear},
+    {label:"Umsatz alle Jahre", value: fmtCHF(totalIncome), sub: paidInvoices.length + " Rechnungen"},
+    {label:"Verkaufte Artikel (Jahr)", value: soldThisYear, sub: currentYear},
+    {label:"Verkaufte Artikel (gesamt)", value: soldAllTime, sub: "alle Bestellungen"},
+    {label:"Gesamtaufwand Artikel", value: fmtCHF(totalArticleCost), sub: "Aufwand × verkaufte Menge"},
+    {label:"Ausgaben (Material etc.)", value: fmtCHF(totalExpense), sub: state.expenses.length + " Einträge"},
     {label:"Gewinn", value: fmtCHF(profit), sub: profit>=0 ? "positiv" : "negativ"},
   ].map(s=>`
     <div class="stat-card">
@@ -1735,6 +1886,23 @@ function renderStatistik(){
       <td class="num">${fmtCHF(r.exp)}</td>
       <td class="num" style="font-weight:700;color:${r.profit>=0?'var(--green)':'var(--red)'};">${fmtCHF(r.profit)}</td>
     </tr>`).join("");
+
+  $("#statArticleBody").innerHTML = articleRows.length ? articleRows.map(r=>`
+    <tr>
+      <td>${esc(r.name)}</td>
+      <td class="num">${r.qty}</td>
+      <td class="num">${fmtCHF(r.revenue)}</td>
+      <td class="num">${fmtCHF(r.cost)}</td>
+      <td class="num" style="color:${r.margin>=0?'var(--green)':'var(--red)'};">${fmtCHF(r.margin)}</td>
+    </tr>`).join("") : `<tr><td colspan="5"><div class="empty-hint">Noch keine Bestellpositionen erfasst.</div></td></tr>`;
+  $("#statArticleFoot").innerHTML = articleRows.length ? `
+    <tr style="font-weight:700;border-top:2px solid var(--border);">
+      <td>Gesamt</td>
+      <td class="num">${soldAllTime}</td>
+      <td class="num">${fmtCHF(totalArticleRevenue)}</td>
+      <td class="num">${fmtCHF(totalArticleCost)}</td>
+      <td class="num" style="color:${(totalArticleRevenue-totalArticleCost)>=0?'var(--green)':'var(--red)'};">${fmtCHF(totalArticleRevenue-totalArticleCost)}</td>
+    </tr>` : "";
 }
 
 async function createInvoiceFromOrder(order){
@@ -1802,20 +1970,49 @@ function openInvoiceView(inv){
     }
   };
   $("#printBtn").onclick = ()=>{
-    const vatPct = ((inv.vatRate!=null?inv.vatRate:VAT_RATE)*100).toFixed(1);
-    $("#printView").innerHTML = `
-      ${brandedHeader("RECHNUNG", [["Rechnung-Nr.", inv.number], ["Datum", fmtDate(inv.date)], ["Fällig", fmtDate(inv.dueDate)]])}
-      ${brandedCustomerBlock(c)}
-      ${brandedItemsTable(inv.items||[], true)}
-      ${brandedTotals(totals, vatPct)}
-      <div style="font-size:11px;color:${BRAND.navy};margin-bottom:6px;"><strong>Zahlungskonditionen:</strong><br>Zahlbar innert 30 Tagen netto.</div>
-      ${brandedFooter()}
-    `;
-    setTimeout(()=> window.print(), 50);
+    openPrintPreviewModal("Rechnung", c, (editedCustomer)=>{
+      const vatPct = ((inv.vatRate!=null?inv.vatRate:VAT_RATE)*100).toFixed(1);
+      $("#printView").innerHTML = `
+        ${brandedHeader("RECHNUNG", [["Rechnung-Nr.", inv.number], ["Datum", fmtDate(inv.date)], ["Fällig", fmtDate(inv.dueDate)], ["Kundennummer", editedCustomer.customerNumber||"–"]])}
+        ${brandedCustomerBlock(editedCustomer)}
+        ${brandedItemsTable(inv.items||[], true)}
+        ${brandedTotals(totals, vatPct)}
+        <div style="font-size:11px;color:${BRAND.navy};margin-bottom:6px;"><strong>Zahlungskonditionen:</strong><br>Zahlbar innert 30 Tagen netto.<br>IBAN: CH19 0070 0113 2005 7366 3</div>
+        ${brandedFooter()}
+      `;
+      setTimeout(()=> window.print(), 50);
+    });
   };
 }
 
 /* ---------------- MODAL ---------------- */
+function openPrintPreviewModal(title, customer, onConfirm){
+  $("#modalTitle").textContent = title + " – Angaben vor Druck prüfen";
+  $("#modalBody").innerHTML = `
+    <div class="empty-hint" style="padding:0 0 12px;">Für Spezialfälle: Angaben hier nur für dieses Dokument anpassen. Der Kundendatensatz bleibt unverändert.</div>
+    <div class="form-row"><label>Firma / Name</label><input id="pp_name" value="${esc(customer.name||"")}"></div>
+    <div class="form-row"><label>Strasse</label><input id="pp_street" value="${esc(customer.street||"")}"></div>
+    <div class="form-grid2">
+      <div class="form-row"><label>PLZ</label><input id="pp_zip" value="${esc(customer.zip||"")}"></div>
+      <div class="form-row"><label>Ort</label><input id="pp_ort" value="${esc(customer.ort||"")}"></div>
+    </div>
+  `;
+  $("#modalFoot").innerHTML = `<button class="btn" id="ppCancelBtn">Abbrechen</button><button class="btn btn-primary" id="ppPrintBtn">🖨️ Weiter zum Druck</button>`;
+  openModal();
+  $("#ppCancelBtn").onclick = closeModal;
+  $("#ppPrintBtn").onclick = ()=>{
+    const edited = {
+      ...customer,
+      name: $("#pp_name").value.trim(),
+      street: $("#pp_street").value.trim(),
+      zip: $("#pp_zip").value.trim(),
+      ort: $("#pp_ort").value.trim(),
+    };
+    closeModal();
+    onConfirm(edited);
+  };
+}
+
 function openModal(){ $("#modalBackdrop").classList.add("open"); }
 function closeModal(){ $("#modalBackdrop").classList.remove("open"); }
 $("#modalCloseBtn").addEventListener("click", closeModal);
