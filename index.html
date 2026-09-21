@@ -485,6 +485,10 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
       </h2>
       <div class="stat-grid" id="statStatGrid"></div>
       <div class="card card-pad" style="margin-bottom:16px;">
+        <div class="panel-title">Jahresvergleich Umsatz <small style="font-weight:400;color:var(--text-soft);">Entwicklung über die Jahre</small></div>
+        <div id="statYearPie"></div>
+      </div>
+      <div class="card card-pad" style="margin-bottom:16px;">
         <div class="panel-title">Letzte 6 Monate</div>
         <table>
           <thead><tr><th>Monat</th><th class="num">Einnahmen</th><th class="num">Ausgaben</th><th class="num">Gewinn</th></tr></thead>
@@ -1853,8 +1857,50 @@ function populateStatYearFilter(){
   sel.innerHTML = sorted.map(y=>`<option value="${y}">${y}</option>`).join("");
   sel.value = sorted.includes(current) ? current : currentYear;
 }
+function renderYearPie(){
+  const target = $("#statYearPie");
+  if(!target) return;
+  const paidInvoices = state.invoices.filter(i=>i.paymentStatus==="bezahlt");
+  const byYear = {};
+  paidInvoices.forEach(i=>{
+    const y = (i.date||"").slice(0,4);
+    if(!y) return;
+    byYear[y] = (byYear[y]||0) + invoiceTotals(i).total;
+  });
+  const years = Object.keys(byYear).sort();
+  if(!years.length){
+    target.innerHTML = `<div class="empty-hint">Noch keine bezahlten Rechnungen erfasst.</div>`;
+    return;
+  }
+  const total = years.reduce((s,y)=>s+byYear[y],0);
+  const palette = ["#332D26","#3F7A4E","#9A6B1F","#3F5F7A","#A13F3F","#7A5B3A","#6B8E9F","#B37B4A"];
+  let cum = 0;
+  const stops = years.map((y,i)=>{
+    const val = byYear[y];
+    const pct = total>0 ? val/total*100 : 0;
+    const start = cum; cum += pct;
+    return `${palette[i%palette.length]} ${start}% ${cum}%`;
+  }).join(", ");
+  const legend = years.map((y,i)=>{
+    const val = byYear[y];
+    const prevVal = byYear[String(Number(y)-1)];
+    let deltaHtml = "";
+    if(prevVal){
+      const delta = ((val-prevVal)/prevVal*100);
+      const sign = delta>=0 ? "+" : "";
+      deltaHtml = ` <span style="color:${delta>=0?'var(--green)':'var(--red)'};font-weight:700;">(${sign}${delta.toFixed(0)}% ggü. ${Number(y)-1})</span>`;
+    }
+    return `<div><span class="dot" style="background:${palette[i%palette.length]};"></span>${y} — ${fmtCHF(val)}${deltaHtml}</div>`;
+  }).join("");
+  target.innerHTML = `
+    <div class="ie-wrap">
+      <div class="ie-pie" style="background:conic-gradient(${stops});"></div>
+      <div class="ie-legend">${legend}</div>
+    </div>`;
+}
 function renderStatistik(){
   populateStatYearFilter();
+  renderYearPie();
   const selectedYear = parseInt($("#statYearFilter").value,10) || new Date().getFullYear();
 
   const paidInvoices = state.invoices.filter(i=>i.paymentStatus==="bezahlt");
