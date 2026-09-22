@@ -371,7 +371,6 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
         <input class="search-input" id="angeboteSearch" placeholder="Kunde oder Angebotsnr. suchen …">
         <select class="filter" id="angeboteStatusFilter">
           <option value="">Alle Status</option>
-          <option value="__open__">Offen (Entwurf/Gesendet)</option>
           <option value="entwurf">Entwurf</option>
           <option value="gesendet">Gesendet</option>
           <option value="angenommen">Angenommen</option>
@@ -394,8 +393,6 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
         <input class="search-input" id="bestellungenSearch" placeholder="Kunde oder Auftragsnr. suchen …">
         <select class="filter" id="bestellungenStatusFilter">
           <option value="">Alle Status</option>
-          <option value="__open__">Offen (alle unerledigten)</option>
-          <option value="__not_delivered__">Noch nicht geliefert</option>
           <option value="offen">Offen</option>
           <option value="in_bearbeitung">In Bearbeitung</option>
           <option value="geliefert">Geliefert</option>
@@ -441,7 +438,6 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
         <input class="search-input" id="rechnungenSearch" placeholder="Kunde oder Rechnungsnr. suchen …">
         <select class="filter" id="rechnungenStatusFilter">
           <option value="">Alle Status</option>
-          <option value="__open__">Offen (inkl. überfällig)</option>
           <option value="offen">Offen</option>
           <option value="bezahlt">Bezahlt</option>
           <option value="ueberfaellig">Überfällig</option>
@@ -564,6 +560,7 @@ const APPLE_TOUCH_ICON_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQA
 })();
 const esc = (s) => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmtCHF = (n) => (Number(n)||0).toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2}) + " CHF";
+const fmtMarginPct = (margin, base) => (base && isFinite(margin/base)) ? " (" + (margin/base*100).toFixed(0) + "%)" : "";
 const fmtDate = (iso) => { if(!iso) return "–"; const d = new Date(iso); if(isNaN(d)) return "–"; return d.toLocaleDateString('de-CH'); };
 const todayISO = () => new Date().toISOString().slice(0,10);
 const uid = () => Math.random().toString(36).slice(2,10);
@@ -884,7 +881,6 @@ function showTab(tab){
 
 /* ---------------- render dispatch ---------------- */
 function renderAll(){
-  refreshOverdueInvoices();
   if(state.currentTab==="dashboard") renderDashboard();
   if(state.currentTab==="kunden") renderKundenList();
   if(state.currentTab==="angebote") renderAngebote();
@@ -912,10 +908,10 @@ function renderDashboard(){
   const profit = revenuePaid - totalExpense;
 
   const stats = [
-    {label:"Offene Angebote", value: openQuotes.length, sub: state.quotes.length + " total", nav:{tab:"angebote", filterEl:"angeboteStatusFilter", filterVal:"__open__"}},
-    {label:"Offene Bestellungen", value: openOrders.length, sub: state.orders.length + " total", nav:{tab:"bestellungen", filterEl:"bestellungenStatusFilter", filterVal:"__open__"}},
-    {label:"Offene Lieferungen", value: openDeliveries.length, sub:"noch zu liefern", nav:{tab:"bestellungen", filterEl:"bestellungenStatusFilter", filterVal:"__not_delivered__"}},
-    {label:"Offene Rechnungen", value: openInvoices.length, sub: fmtCHF(revenueOpen), nav:{tab:"rechnungen", filterEl:"rechnungenStatusFilter", filterVal:"__open__"}},
+    {label:"Offene Angebote", value: openQuotes.length, sub: state.quotes.length + " total", nav:{tab:"angebote"}},
+    {label:"Offene Bestellungen", value: openOrders.length, sub: state.orders.length + " total", nav:{tab:"bestellungen"}},
+    {label:"Offene Lieferungen", value: openDeliveries.length, sub:"noch zu liefern", nav:{tab:"bestellungen"}},
+    {label:"Offene Rechnungen", value: openInvoices.length, sub: fmtCHF(revenueOpen), nav:{tab:"rechnungen"}},
     {label:"Umsatz (bezahlt)", value: fmtCHF(revenuePaid), sub: state.invoices.length + " Rechnungen total", nav:{tab:"rechnungen", filterEl:"rechnungenStatusFilter", filterVal:"bezahlt"}},
     {label:"Ausgaben", value: fmtCHF(totalExpense), sub: state.expenses.length + " Einträge", nav:{tab:"ausgaben"}},
     {label:"Gewinn", value: fmtCHF(profit), sub: profit>=0 ? "positiv" : "negativ", nav:{tab:"statistik"}},
@@ -1241,9 +1237,7 @@ function renderBestellungen(){
   const q = ($("#bestellungenSearch").value||"").toLowerCase();
   const statusF = $("#bestellungenStatusFilter").value;
   let rows = state.orders.filter(o=>{
-    if(statusF==="__open__" && !(o.status==="offen"||o.status==="in_bearbeitung")) return false;
-    else if(statusF==="__not_delivered__" && o.status==="geliefert") return false;
-    else if(statusF && statusF!=="__open__" && statusF!=="__not_delivered__" && o.status!==statusF) return false;
+    if(statusF && o.status!==statusF) return false;
     if(!q) return true;
     return (o.number||"").toLowerCase().includes(q) || customerName(o.customerId).toLowerCase().includes(q);
   }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
@@ -1263,7 +1257,7 @@ function renderBestellungen(){
       <td class="clickable" data-open="${o.id}">${fmtDate(o.date)}</td>
       <td class="clickable" data-open="${o.id}" style="${overdue?'color:var(--red);font-weight:700;':''}">${o.plannedDeliveryDate ? fmtDate(o.plannedDeliveryDate) : "–"}${overdue?" ⚠":""}</td>
       <td class="num clickable" data-open="${o.id}">${fmtCHF(orderTotal(o))}</td>
-      <td class="num clickable" data-open="${o.id}" style="color:${margin>=0?'var(--green)':'var(--red)'};">${fmtCHF(margin)}</td>
+      <td class="num clickable" data-open="${o.id}" style="color:${margin>=0?'var(--green)':'var(--red)'};">${fmtCHF(margin)}${fmtMarginPct(margin, orderTotal(o))}</td>
       <td>
         <select class="status-select badge-${o.status}" data-statusof="${o.id}">
           ${Object.entries(STATUS_ORDER).map(([k,v])=>`<option value="${k}" ${o.status===k?"selected":""}>${v}</option>`).join("")}
@@ -1423,8 +1417,7 @@ function renderAngebote(){
   const q = ($("#angeboteSearch").value||"").toLowerCase();
   const statusF = $("#angeboteStatusFilter").value;
   let rows = state.quotes.filter(o=>{
-    if(statusF==="__open__" && !(o.status==="entwurf"||o.status==="gesendet")) return false;
-    else if(statusF && statusF!=="__open__" && o.status!==statusF) return false;
+    if(statusF && o.status!==statusF) return false;
     if(!q) return true;
     return (o.number||"").toLowerCase().includes(q) || customerName(o.customerId).toLowerCase().includes(q);
   }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
@@ -1677,7 +1670,7 @@ function renderArtikel(){
       <td>${esc(a.category||"–")}</td>
       <td class="num">${fmtCHF(a.price)}</td>
       <td class="num">${fmtCHF(a.cost||0)}</td>
-      <td class="num" style="color:${margin>=0?'var(--green)':'var(--red)'};">${fmtCHF(margin)}</td>
+      <td class="num" style="color:${margin>=0?'var(--green)':'var(--red)'};">${fmtCHF(margin)}${fmtMarginPct(margin, a.price)}</td>
       <td>${esc(a.unit||"Stk")}</td>
       <td class="num">${stats.qty}</td>
       <td></td>
@@ -1735,8 +1728,7 @@ function renderRechnungen(){
   const q = ($("#rechnungenSearch").value||"").toLowerCase();
   const statusF = $("#rechnungenStatusFilter").value;
   let rows = state.invoices.filter(i=>{
-    if(statusF==="__open__" && !(i.paymentStatus==="offen"||i.paymentStatus==="ueberfaellig")) return false;
-    else if(statusF && statusF!=="__open__" && i.paymentStatus!==statusF) return false;
+    if(statusF && i.paymentStatus!==statusF) return false;
     if(!q) return true;
     return (i.number||"").toLowerCase().includes(q) || customerName(i.customerId).toLowerCase().includes(q);
   }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
@@ -1933,13 +1925,14 @@ function renderStatistik(){
   }).sort((a,b)=> b.revenue - a.revenue);
   const totalArticleRevenue = articleRows.reduce((s,r)=>s+r.revenue,0);
   const totalArticleCost = articleRows.reduce((s,r)=>s+r.cost,0);
+  const costSelectedYear = Array.from(artKeys.values()).reduce((s,{articleId,name})=> s + articleStats(articleId, name, selectedYear).cost, 0);
 
   $("#statStatGrid").innerHTML = [
     {label:`Umsatz ${selectedYear}`, value: fmtCHF(incomeSelectedYear), sub: "nach Rechnungsdatum"},
     {label:"Umsatz alle Jahre", value: fmtCHF(totalIncome), sub: paidInvoices.length + " Rechnungen"},
     {label:`Verkaufte Artikel ${selectedYear}`, value: soldSelectedYear, sub: "nach Bestelldatum"},
     {label:"Verkaufte Artikel (gesamt)", value: soldAllTime, sub: "alle Bestellungen"},
-    {label:"Gesamtaufwand Artikel", value: fmtCHF(totalArticleCost), sub: "Aufwand × verkaufte Menge"},
+    {label:`Wareneinsatz ${selectedYear}`, value: fmtCHF(costSelectedYear), sub: "verkaufte Menge × Aufwand/Stk."},
     {label:`Ausgaben ${selectedYear}`, value: fmtCHF(expenseSelectedYear), sub: state.expenses.filter(e=>(e.date||"").startsWith(String(selectedYear))).length + " Einträge"},
     {label:"Gewinn (alle Jahre)", value: fmtCHF(profit), sub: profit>=0 ? "positiv" : "negativ"},
   ].map(s=>`
@@ -1975,7 +1968,7 @@ function renderStatistik(){
       <td class="num">${r.qty}</td>
       <td class="num">${fmtCHF(r.revenue)}</td>
       <td class="num">${fmtCHF(r.cost)}</td>
-      <td class="num" style="color:${r.margin>=0?'var(--green)':'var(--red)'};">${fmtCHF(r.margin)}</td>
+      <td class="num" style="color:${r.margin>=0?'var(--green)':'var(--red)'};">${fmtCHF(r.margin)}${fmtMarginPct(r.margin, r.revenue)}</td>
     </tr>`).join("") : `<tr><td colspan="5"><div class="empty-hint">Noch keine Bestellpositionen erfasst.</div></td></tr>`;
   $("#statArticleFoot").innerHTML = articleRows.length ? `
     <tr style="font-weight:700;border-top:2px solid var(--border);">
@@ -1983,7 +1976,7 @@ function renderStatistik(){
       <td class="num">${soldAllTime}</td>
       <td class="num">${fmtCHF(totalArticleRevenue)}</td>
       <td class="num">${fmtCHF(totalArticleCost)}</td>
-      <td class="num" style="color:${(totalArticleRevenue-totalArticleCost)>=0?'var(--green)':'var(--red)'};">${fmtCHF(totalArticleRevenue-totalArticleCost)}</td>
+      <td class="num" style="color:${(totalArticleRevenue-totalArticleCost)>=0?'var(--green)':'var(--red)'};">${fmtCHF(totalArticleRevenue-totalArticleCost)}${fmtMarginPct(totalArticleRevenue-totalArticleCost, totalArticleRevenue)}</td>
     </tr>` : "";
 }
 $("#statYearFilter").addEventListener("change", renderStatistik);
@@ -2251,6 +2244,10 @@ $("#globalSearchBtn").addEventListener("click", ()=>{
 initDb();
 // safety: if db capability never resolves, stop showing the spinner forever
 setTimeout(()=>{ if(!allReady()) { $("#loadingScreen").classList.add("hidden"); renderAll(); } }, 9000);
+// check for newly-overdue invoices once shortly after load, then every 10 minutes —
+// deliberately NOT on every render, so it can't interrupt someone mid-edit
+setTimeout(refreshOverdueInvoices, 4000);
+setInterval(refreshOverdueInvoices, 10*60*1000);
 
 })();
 </script>
