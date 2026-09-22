@@ -904,6 +904,9 @@ function renderDashboard(){
   const openQuotes = state.quotes.filter(q=>q.status==="entwurf" || q.status==="gesendet");
   const revenuePaid = state.invoices.filter(i=>i.paymentStatus==="bezahlt").reduce((s,i)=>s+invoiceTotals(i).total,0);
   const revenueOpen = openInvoices.reduce((s,i)=>s+invoiceTotals(i).total,0);
+  const unbilledOrders = state.orders.filter(o=>!o.invoiceId);
+  const unbilledRevenue = unbilledOrders.reduce((s,o)=>s+orderTotal(o),0);
+  const expectedRevenue = revenueOpen + unbilledRevenue;
   const totalExpense = state.expenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
   const profit = revenuePaid - totalExpense;
 
@@ -913,6 +916,7 @@ function renderDashboard(){
     {label:"Offene Lieferungen", value: openDeliveries.length, sub:"noch zu liefern", nav:{tab:"bestellungen"}},
     {label:"Offene Rechnungen", value: openInvoices.length, sub: fmtCHF(revenueOpen), nav:{tab:"rechnungen"}},
     {label:"Umsatz (bezahlt)", value: fmtCHF(revenuePaid), sub: state.invoices.length + " Rechnungen total", nav:{tab:"rechnungen", filterEl:"rechnungenStatusFilter", filterVal:"bezahlt"}},
+    {label:"Erwarteter Umsatz", value: fmtCHF(expectedRevenue), sub: "offene Rechnungen + unverrechnete Bestellungen", nav:{tab:"bestellungen"}},
     {label:"Ausgaben", value: fmtCHF(totalExpense), sub: state.expenses.length + " Einträge", nav:{tab:"ausgaben"}},
     {label:"Gewinn", value: fmtCHF(profit), sub: profit>=0 ? "positiv" : "negativ", nav:{tab:"statistik"}},
   ];
