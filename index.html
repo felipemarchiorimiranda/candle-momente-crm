@@ -117,6 +117,19 @@ h2.view-title small{font-size:12px;font-weight:400;color:var(--text-soft);}
 .dash-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;}
 @media (max-width:820px){.dash-grid{grid-template-columns:1fr;}}
 
+.note-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;}
+.note-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow);cursor:pointer;transition:.15s;display:flex;flex-direction:column;gap:8px;}
+.note-card:hover{border-color:var(--navy);transform:translateY(-1px);}
+.note-card .note-title{font-weight:700;font-size:14.5px;}
+.note-card .note-desc{font-size:13px;color:var(--text-soft);white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;}
+.note-card .note-foot{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:4px;}
+.note-cat{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;}
+.note-attach-count{font-size:11.5px;color:var(--text-soft);display:flex;align-items:center;gap:4px;}
+.note-thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px;}
+.note-thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--border);}
+.attach-item{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:13px;}
+.attach-item a{color:var(--accent);font-weight:600;text-decoration:none;}
+.attach-item a:hover{text-decoration:underline;}
 .ie-wrap{display:flex;gap:28px;align-items:center;flex-wrap:wrap;}
 .ie-pie{width:140px;height:140px;border-radius:50%;flex-shrink:0;}
 .ie-legend{display:flex;flex-direction:column;gap:6px;font-size:13px;}
@@ -286,6 +299,7 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
     <button data-tab="angebote">Angebote</button>
     <button data-tab="ausgaben">Ausgaben</button>
     <button data-tab="statistik">Statistik</button>
+    <button data-tab="notizen">Notizen</button>
   </nav>
 
   <main>
@@ -501,6 +515,24 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
       </div>
     </section>
 
+    <!-- NOTIZEN / IDEEN -->
+    <section class="view" id="view-notizen">
+      <h2 class="view-title">Notizen &amp; Ideen</h2>
+      <div class="toolbar">
+        <input class="search-input" id="notizenSearch" placeholder="Titel oder Beschreibung suchen …">
+        <select class="filter" id="notizenKategorieFilter">
+          <option value="">Alle Kategorien</option>
+          <option value="Farben">Farben</option>
+          <option value="Formen">Formen</option>
+          <option value="Produktideen">Produktideen</option>
+          <option value="Material">Material</option>
+          <option value="Sonstiges">Sonstiges</option>
+        </select>
+        <button class="btn btn-primary" id="newNotizBtn">+ Neue Notiz</button>
+      </div>
+      <div class="note-grid" id="notizenGrid"></div>
+    </section>
+
   </main>
   <div class="footer-note">Candle Momente & Co — internes Dashboard</div>
 </div>
@@ -588,7 +620,8 @@ const state = {
   tasks: [],
   expenses: [],
   quotes: [],
-  ready: {customers:false, articles:false, orders:false, invoices:false, tasks:false, expenses:false, quotes:false},
+  notes: [],
+  ready: {customers:false, articles:false, orders:false, invoices:false, tasks:false, expenses:false, quotes:false, notes:false},
   currentTab: "dashboard",
   currentCustomerId: null,
 };
@@ -618,6 +651,7 @@ const COLMAP = {
   tasks:     {customerId:"customer_id", type:"type", text:"text", dueDate:"due_date", done:"done", createdAt:"created_at"},
   expenses:  {date:"date", category:"category", description:"description", amount:"amount", createdAt:"created_at"},
   quotes:    {number:"number", customerId:"customer_id", date:"date", validUntil:"valid_until", status:"status", items:"items", notes:"notes", orderId:"order_id", createdAt:"created_at"},
+  notes:     {title:"title", description:"description", category:"category", attachments:"attachments", createdAt:"created_at"},
 };
 function toDb(col, data){
   const map = COLMAP[col];
@@ -643,7 +677,7 @@ async function initDb(){
     return;
   }
   db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  await Promise.all(["customers","articles","orders","invoices","tasks","expenses","quotes"].map(col=> fetchAll(col)));
+  await Promise.all(["customers","articles","orders","invoices","tasks","expenses","quotes","notes"].map(col=> fetchAll(col)));
   subscribeRealtime();
 }
 
@@ -670,6 +704,7 @@ function subscribeRealtime(){
     .on("postgres_changes", {event:"*", schema:"public", table:"tasks"},     ()=> fetchAll("tasks").then(renderAll))
     .on("postgres_changes", {event:"*", schema:"public", table:"expenses"},  ()=> fetchAll("expenses").then(renderAll))
     .on("postgres_changes", {event:"*", schema:"public", table:"quotes"},    ()=> fetchAll("quotes").then(renderAll))
+    .on("postgres_changes", {event:"*", schema:"public", table:"notes"},     ()=> fetchAll("notes").then(renderAll))
     .subscribe();
 }
 
@@ -874,7 +909,7 @@ function showTab(tab){
   state.currentTab = tab;
   $$("#tabs button").forEach(b=> b.classList.toggle("active", b.dataset.tab===tab));
   $$(".view").forEach(v=> v.classList.remove("active"));
-  const map = {dashboard:"view-dashboard", kunden:"view-kunden", angebote:"view-angebote", bestellungen:"view-bestellungen", artikel:"view-artikel", rechnungen:"view-rechnungen", ausgaben:"view-ausgaben", statistik:"view-statistik"};
+  const map = {dashboard:"view-dashboard", kunden:"view-kunden", angebote:"view-angebote", bestellungen:"view-bestellungen", artikel:"view-artikel", rechnungen:"view-rechnungen", ausgaben:"view-ausgaben", statistik:"view-statistik", notizen:"view-notizen"};
   $("#"+map[tab]).classList.add("active");
   renderAll();
 }
@@ -889,6 +924,7 @@ function renderAll(){
   if(state.currentTab==="rechnungen") renderRechnungen();
   if(state.currentTab==="ausgaben") renderAusgaben();
   if(state.currentTab==="statistik") renderStatistik();
+  if(state.currentTab==="notizen") renderNotizen();
   if(document.getElementById("view-kunde-detail").classList.contains("active") && state.currentCustomerId){
     renderKundeDetail(state.currentCustomerId);
   }
@@ -2146,6 +2182,156 @@ function openInvoiceEditForm(inv){
     toast("Rechnung aktualisiert.");
     const updated = state.invoices.find(i=>i.id===inv.id) || {...inv, ...data};
     openInvoiceView(updated);
+  };
+}
+
+/* ---------------- NOTIZEN / IDEEN ---------------- */
+const NOTE_CATEGORY_COLORS = {
+  "Farben":       {bg:"var(--red-bg)",   fg:"var(--red)"},
+  "Formen":       {bg:"var(--blue-bg)",  fg:"var(--blue)"},
+  "Produktideen": {bg:"var(--green-bg)", fg:"var(--green)"},
+  "Material":     {bg:"var(--amber-bg)", fg:"var(--amber)"},
+  "Sonstiges":    {bg:"var(--beige)",    fg:"var(--text-soft)"},
+};
+function noteCatStyle(cat){
+  const c = NOTE_CATEGORY_COLORS[cat] || NOTE_CATEGORY_COLORS["Sonstiges"];
+  return `background:${c.bg};color:${c.fg};`;
+}
+function isImageFile(name){
+  return /\.(png|jpe?g|gif|webp|svg)$/i.test(name||"");
+}
+
+function renderNotizen(){
+  const q = ($("#notizenSearch").value||"").toLowerCase();
+  const catF = $("#notizenKategorieFilter").value;
+  let rows = state.notes.filter(n=>{
+    if(catF && n.category!==catF) return false;
+    if(!q) return true;
+    return (n.title||"").toLowerCase().includes(q) || (n.description||"").toLowerCase().includes(q);
+  }).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+
+  if(!rows.length){
+    $("#notizenGrid").innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="big">💡</div>Noch keine Notizen oder Ideen erfasst.</div>`;
+    return;
+  }
+  $("#notizenGrid").innerHTML = rows.map(n=>{
+    const files = n.attachments||[];
+    const imgs = files.filter(f=> isImageFile(f.name)).slice(0,4);
+    return `
+    <div class="note-card" data-id="${n.id}">
+      <div class="note-title">${esc(n.title)}</div>
+      ${n.description ? `<div class="note-desc">${esc(n.description)}</div>` : ""}
+      ${imgs.length ? `<div class="note-thumbs">${imgs.map(f=>`<img class="note-thumb" src="${esc(f.url)}" alt="">`).join("")}</div>` : ""}
+      <div class="note-foot">
+        <span class="note-cat" style="${noteCatStyle(n.category)}">${esc(n.category||"Sonstiges")}</span>
+        ${files.length ? `<span class="note-attach-count">📎 ${files.length}</span>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+  $$("#notizenGrid .note-card").forEach(card=> card.addEventListener("click", ()=> openNoteForm(state.notes.find(n=>n.id===card.dataset.id))));
+}
+$("#notizenSearch").addEventListener("input", renderNotizen);
+$("#notizenKategorieFilter").addEventListener("change", renderNotizen);
+$("#newNotizBtn").addEventListener("click", ()=> openNoteForm());
+
+function openNoteForm(note){
+  const isEdit = !!note;
+  note = note || {title:"", description:"", category:"Sonstiges", attachments:[]};
+  const files = note.attachments||[];
+
+  $("#modalTitle").textContent = isEdit ? "Notiz bearbeiten" : "Neue Notiz";
+  $("#modalBody").innerHTML = `
+    <div class="form-row"><label>Titel *</label><input id="n_title" value="${esc(note.title)}"></div>
+    <div class="form-row"><label>Kategorie</label>
+      <select id="n_category">
+        ${["Farben","Formen","Produktideen","Material","Sonstiges"].map(c=>`<option value="${c}" ${note.category===c?"selected":""}>${c}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-row"><label>Beschreibung</label><textarea id="n_description" style="min-height:100px;">${esc(note.description)}</textarea></div>
+    ${isEdit ? `
+    <div class="form-row">
+      <label style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Anhänge</span>
+        <label class="btn btn-sm" style="cursor:pointer;margin:0;">📎 Datei hinzufügen<input type="file" id="n_fileInput" style="display:none;"></label>
+      </label>
+      <div id="n_attachList" style="margin-top:8px;"></div>
+    </div>` : `<div class="empty-hint" style="padding:0;">Anhänge können nach dem ersten Speichern hinzugefügt werden.</div>`}
+  `;
+  $("#modalFoot").innerHTML = `
+    ${isEdit ? `<button class="btn btn-danger" id="delBtn" style="margin-right:auto;">Löschen</button>` : ""}
+    <button class="btn" id="cancelBtn">Abbrechen</button>
+    <button class="btn btn-primary" id="saveBtn">Speichern</button>
+  `;
+  openModal();
+
+  function renderAttachList(){
+    const wrap = $("#n_attachList");
+    if(!wrap) return;
+    wrap.innerHTML = files.length ? files.map(f=>`
+      <div class="attach-item">
+        <a href="${esc(f.url)}" target="_blank">${isImageFile(f.name)?"🖼️":"📄"} ${esc(f.name)}</a>
+        <a href="#" data-delfile="${esc(f.id)}" style="color:var(--red);text-decoration:none;">✕</a>
+      </div>`).join("") : `<div class="empty-hint" style="padding:4px 0;">Keine Anhänge</div>`;
+    wrap.querySelectorAll("[data-delfile]").forEach(a=> a.addEventListener("click", async (e)=>{
+      e.preventDefault();
+      if(!confirm("Anhang entfernen?")) return;
+      const removed = files.find(f=>f.id===a.dataset.delfile);
+      const idx = files.findIndex(f=>f.id===a.dataset.delfile);
+      if(idx>-1) files.splice(idx,1);
+      await dbUpdate("notes", note.id, {attachments: files});
+      if(removed && removed.path){ db.storage.from("documents").remove([removed.path]).catch(()=>{}); }
+      renderAttachList();
+      toast("Anhang entfernt.");
+    }));
+  }
+  if(isEdit) renderAttachList();
+
+  if(isEdit){
+    $("#n_fileInput").addEventListener("change", async (e)=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      try{
+        const path = "notes/" + note.id + "/" + Date.now() + "_" + file.name.replace(/[^a-zA-Z0-9_.-]/g,"_");
+        const { error: upErr } = await db.storage.from("documents").upload(path, file);
+        if(upErr) throw upErr;
+        const { data: pub } = db.storage.from("documents").getPublicUrl(path);
+        files.push({id:uid(), name:file.name, url:pub.publicUrl, path});
+        await dbUpdate("notes", note.id, {attachments: files});
+        renderAttachList();
+        toast("Anhang hinzugefügt.");
+      }catch(err){
+        toast("Upload fehlgeschlagen.");
+      }
+      e.target.value = "";
+    });
+  }
+
+  $("#cancelBtn").onclick = closeModal;
+  if(isEdit){
+    $("#delBtn").onclick = async ()=>{
+      if(confirm("Diese Notiz wirklich löschen?")){
+        await dbDelete("notes", note.id);
+        closeModal();
+        toast("Notiz gelöscht.");
+      }
+    };
+  }
+  $("#saveBtn").onclick = async ()=>{
+    const title = $("#n_title").value.trim();
+    if(!title){ toast("Bitte einen Titel angeben."); return; }
+    const data = {title, description:$("#n_description").value.trim(), category:$("#n_category").value};
+    if(isEdit){
+      await dbUpdate("notes", note.id, data);
+      toast("Notiz aktualisiert.");
+      closeModal();
+    }else{
+      data.attachments = [];
+      data.createdAt = new Date().toISOString();
+      const id = await dbAdd("notes", data);
+      toast("Notiz angelegt.");
+      if(id){ openNoteForm({...data, id}); return; }
+      closeModal();
+    }
   };
 }
 
