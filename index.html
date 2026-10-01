@@ -467,7 +467,7 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
 
     <!-- AUSGABEN -->
     <section class="view" id="view-ausgaben">
-      <h2 class="view-title">Ausgaben <small>Materialkosten, Verpackung, Sonstiges</small></h2>
+      <h2 class="view-title">Ausgaben <small>Materialkosten, Verpackung, Sonstiges — Vorauslagen &amp; Rückzahlungen</small></h2>
       <div class="toolbar">
         <input class="search-input" id="ausgabenSearch" placeholder="Beschreibung suchen …">
         <select class="filter" id="ausgabenKategorieFilter">
@@ -478,11 +478,29 @@ table tbody tr.clickable:hover{background:var(--beige-light);}
           <option value="Transport">Transport</option>
           <option value="Sonstiges">Sonstiges</option>
         </select>
+        <select class="filter" id="ausgabenPersonFilter">
+          <option value="">Alle Personen</option>
+        </select>
+        <select class="filter" id="ausgabenRueckzahlFilter">
+          <option value="">Rückzahlung: alle</option>
+          <option value="offen">Offen</option>
+          <option value="bezahlt">Bezahlt</option>
+        </select>
         <button class="btn btn-primary" id="newAusgabeBtn">+ Neue Ausgabe</button>
       </div>
+      <div class="toolbar">
+        <label style="font-size:12.5px;color:var(--text-soft);display:flex;align-items:center;gap:6px;">Zeitraum von <input type="date" id="ausgabenVonFilter" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);"></label>
+        <label style="font-size:12.5px;color:var(--text-soft);display:flex;align-items:center;gap:6px;">bis <input type="date" id="ausgabenBisFilter" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);"></label>
+        <select class="filter" id="ausgabenSort">
+          <option value="date_desc">Sortierung: Datum (neueste zuerst)</option>
+          <option value="amount_desc">Sortierung: Betrag (hoch → tief)</option>
+          <option value="amount_asc">Sortierung: Betrag (tief → hoch)</option>
+        </select>
+      </div>
+      <div class="card" id="ausgabenOpenSummary" style="margin-bottom:14px;"></div>
       <div class="card">
         <table>
-          <thead><tr><th>Datum</th><th>Kategorie</th><th>Beschreibung</th><th class="num">Betrag</th><th></th></tr></thead>
+          <thead><tr><th>Datum</th><th>Kategorie</th><th>Beschreibung</th><th>Bezahlt von</th><th class="num">Betrag</th><th>Rückzahlung</th><th></th></tr></thead>
           <tbody id="ausgabenTableBody"></tbody>
         </table>
       </div>
@@ -649,7 +667,7 @@ const COLMAP = {
   orders:    {number:"number", customerId:"customer_id", date:"date", status:"status", items:"items", notes:"notes", invoiceId:"invoice_id", lieferscheinNumber:"lieferschein_number", lieferscheinDate:"lieferschein_date", plannedDeliveryDate:"planned_delivery_date", createdAt:"created_at"},
   invoices:  {number:"number", orderId:"order_id", customerId:"customer_id", date:"date", dueDate:"due_date", items:"items", vatRate:"vat_rate", paymentStatus:"payment_status", paidDate:"paid_date", createdAt:"created_at"},
   tasks:     {customerId:"customer_id", type:"type", text:"text", dueDate:"due_date", done:"done", createdAt:"created_at"},
-  expenses:  {date:"date", category:"category", description:"description", amount:"amount", createdAt:"created_at"},
+  expenses:  {date:"date", category:"category", description:"description", amount:"amount", paidBy:"paid_by", reimbursementStatus:"reimbursement_status", reimbursementDate:"reimbursement_date", createdAt:"created_at"},
   quotes:    {number:"number", customerId:"customer_id", date:"date", validUntil:"valid_until", status:"status", items:"items", notes:"notes", orderId:"order_id", createdAt:"created_at"},
   notes:     {title:"title", description:"description", category:"category", attachments:"attachments", createdAt:"created_at"},
 };
@@ -945,6 +963,8 @@ function renderDashboard(){
   const expectedRevenue = revenueOpen + unbilledRevenue;
   const totalExpense = state.expenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
   const profit = revenuePaid - totalExpense;
+  const openReimbExpenses = state.expenses.filter(e=>(e.reimbursementStatus||"offen")==="offen");
+  const openReimbTotal = openReimbExpenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
 
   const stats = [
     {label:"Offene Angebote", value: openQuotes.length, sub: state.quotes.length + " total", nav:{tab:"angebote"}},
@@ -954,6 +974,7 @@ function renderDashboard(){
     {label:"Umsatz (bezahlt)", value: fmtCHF(revenuePaid), sub: state.invoices.length + " Rechnungen total", nav:{tab:"rechnungen", filterEl:"rechnungenStatusFilter", filterVal:"bezahlt"}},
     {label:"Erwarteter Umsatz", value: fmtCHF(expectedRevenue), sub: "offene Rechnungen + unverrechnete Bestellungen", nav:{tab:"bestellungen"}},
     {label:"Ausgaben", value: fmtCHF(totalExpense), sub: state.expenses.length + " Einträge", nav:{tab:"ausgaben"}},
+    {label:"Offene Rückzahlungen", value: fmtCHF(openReimbTotal), sub: openReimbExpenses.length + " Vorauslagen", nav:{tab:"ausgaben", filterEl:"ausgabenRueckzahlFilter", filterVal:"offen"}},
     {label:"Gewinn", value: fmtCHF(profit), sub: profit>=0 ? "positiv" : "negativ", nav:{tab:"statistik"}},
   ];
   $("#statGrid").innerHTML = stats.map((s,i)=>`
@@ -1805,40 +1826,105 @@ $("#rechnungenSearch").addEventListener("input", renderRechnungen);
 $("#rechnungenStatusFilter").addEventListener("change", renderRechnungen);
 
 /* ---------------- AUSGABEN ---------------- */
+function populateAusgabenPersonFilter(){
+  const sel = $("#ausgabenPersonFilter");
+  const current = sel.value;
+  const people = Array.from(new Set(state.expenses.map(e=>e.paidBy).filter(Boolean))).sort();
+  sel.innerHTML = `<option value="">Alle Personen</option>` + people.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join("");
+  sel.value = people.includes(current) ? current : "";
+}
 function renderAusgaben(){
+  populateAusgabenPersonFilter();
   const q = ($("#ausgabenSearch").value||"").toLowerCase();
   const catF = $("#ausgabenKategorieFilter").value;
+  const personF = $("#ausgabenPersonFilter").value;
+  const rueckF = $("#ausgabenRueckzahlFilter").value;
+  const vonF = $("#ausgabenVonFilter").value;
+  const bisF = $("#ausgabenBisFilter").value;
+  const sortBy = $("#ausgabenSort").value;
+
   let rows = state.expenses.filter(e=>{
     if(catF && e.category!==catF) return false;
+    if(personF && e.paidBy!==personF) return false;
+    if(rueckF && (e.reimbursementStatus||"offen")!==rueckF) return false;
+    if(vonF && (e.date||"") < vonF) return false;
+    if(bisF && (e.date||"") > bisF) return false;
     if(!q) return true;
     return (e.description||"").toLowerCase().includes(q);
-  }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  });
+  if(sortBy==="amount_desc") rows.sort((a,b)=>(Number(b.amount)||0)-(Number(a.amount)||0));
+  else if(sortBy==="amount_asc") rows.sort((a,b)=>(Number(a.amount)||0)-(Number(b.amount)||0));
+  else rows.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+  // open-reimbursement summary, grouped by person — always computed from ALL open expenses
+  // (not the filtered set) so it stays a reliable at-a-glance total
+  const openByPerson = {};
+  state.expenses.forEach(e=>{
+    if((e.reimbursementStatus||"offen")==="offen"){
+      const who = e.paidBy || "Unbekannt";
+      openByPerson[who] = (openByPerson[who]||0) + (Number(e.amount)||0);
+    }
+  });
+  const openEntries = Object.entries(openByPerson).sort((a,b)=>b[1]-a[1]);
+  const openTotal = openEntries.reduce((s,[,v])=>s+v,0);
+  $("#ausgabenOpenSummary").innerHTML = `
+    <div class="card-pad">
+      <div class="panel-title">Offene Rückzahlungen <span style="font-weight:700;color:${openTotal>0?'var(--amber)':'var(--green)'};">${fmtCHF(openTotal)}</span></div>
+      ${openEntries.length ? `<div class="mini-list">${openEntries.map(([who,amt])=>`
+        <div class="mini-row"><span class="name">${esc(who)}</span><span class="amt">${fmtCHF(amt)}</span></div>
+      `).join("")}</div>` : `<div class="empty-hint">Alle Ausgaben sind zurückbezahlt 🎉</div>`}
+    </div>`;
 
   if(!rows.length){
-    $("#ausgabenTableBody").innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="big">🧾</div>Keine Ausgaben erfasst.</div></td></tr>`;
+    $("#ausgabenTableBody").innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="big">🧾</div>Keine Ausgaben gefunden.</div></td></tr>`;
     return;
   }
-  $("#ausgabenTableBody").innerHTML = rows.map(e=>`
-    <tr class="clickable" data-id="${e.id}">
-      <td>${fmtDate(e.date)}</td>
-      <td><span class="badge" style="background:var(--beige);color:var(--text);">${esc(e.category||"Sonstiges")}</span></td>
-      <td>${esc(e.description||"")}</td>
-      <td class="num">${fmtCHF(e.amount)}</td>
+  $("#ausgabenTableBody").innerHTML = rows.map(e=>{
+    const status = e.reimbursementStatus || "offen";
+    return `
+    <tr>
+      <td class="clickable" data-open="${e.id}">${fmtDate(e.date)}</td>
+      <td class="clickable" data-open="${e.id}"><span class="badge" style="background:var(--beige);color:var(--text);">${esc(e.category||"Sonstiges")}</span></td>
+      <td class="clickable" data-open="${e.id}">${esc(e.description||"")}</td>
+      <td class="clickable" data-open="${e.id}">${esc(e.paidBy||"–")}</td>
+      <td class="num clickable" data-open="${e.id}">${fmtCHF(e.amount)}</td>
+      <td>
+        <select class="status-select badge-${status==='bezahlt'?'bezahlt':'offen'}" data-rueckof="${e.id}">
+          <option value="offen" ${status==="offen"?"selected":""}>Offen</option>
+          <option value="bezahlt" ${status==="bezahlt"?"selected":""}>Bezahlt</option>
+        </select>
+        ${status==="bezahlt" && e.reimbursementDate ? `<div style="font-size:11px;color:var(--text-soft);margin-top:3px;">${fmtDate(e.reimbursementDate)}</div>` : ""}
+      </td>
       <td></td>
-    </tr>`).join("");
-  $$("#ausgabenTableBody tr[data-id]").forEach(tr=> tr.addEventListener("click", ()=> openExpenseForm(state.expenses.find(e=>e.id===tr.dataset.id))));
+    </tr>`;
+  }).join("");
+  $$("#ausgabenTableBody [data-open]").forEach(td=> td.addEventListener("click", ()=> openExpenseForm(state.expenses.find(e=>e.id===td.dataset.open))));
+  $$("#ausgabenTableBody [data-rueckof]").forEach(sel=>{
+    sel.addEventListener("click", (e)=> e.stopPropagation());
+    sel.addEventListener("change", async ()=>{
+      const data = {reimbursementStatus: sel.value};
+      data.reimbursementDate = sel.value==="bezahlt" ? todayISO() : null;
+      await dbUpdate("expenses", sel.dataset.rueckof, data);
+      toast("Rückzahlungsstatus aktualisiert.");
+    });
+  });
 }
 $("#ausgabenSearch").addEventListener("input", renderAusgaben);
 $("#ausgabenKategorieFilter").addEventListener("change", renderAusgaben);
+$("#ausgabenPersonFilter").addEventListener("change", renderAusgaben);
+$("#ausgabenRueckzahlFilter").addEventListener("change", renderAusgaben);
+$("#ausgabenVonFilter").addEventListener("change", renderAusgaben);
+$("#ausgabenBisFilter").addEventListener("change", renderAusgaben);
+$("#ausgabenSort").addEventListener("change", renderAusgaben);
 $("#newAusgabeBtn").addEventListener("click", ()=> openExpenseForm());
 
 function openExpenseForm(expense){
   const isEdit = !!expense;
-  expense = expense || {date:todayISO(), category:"Material", description:"", amount:0};
+  expense = expense || {date:todayISO(), category:"Material", description:"", amount:0, paidBy:"", reimbursementStatus:"offen", reimbursementDate:""};
   $("#modalTitle").textContent = isEdit ? "Ausgabe bearbeiten" : "Neue Ausgabe";
   $("#modalBody").innerHTML = `
     <div class="form-grid2">
-      <div class="form-row"><label>Datum</label><input type="date" id="e_date" value="${expense.date||todayISO()}"></div>
+      <div class="form-row"><label>Datum der Ausgabe</label><input type="date" id="e_date" value="${expense.date||todayISO()}"></div>
       <div class="form-row"><label>Kategorie</label>
         <select id="e_category">
           ${["Material","Verpackung","Marketing","Transport","Sonstiges"].map(c=>`<option value="${c}" ${expense.category===c?"selected":""}>${c}</option>`).join("")}
@@ -1846,7 +1932,20 @@ function openExpenseForm(expense){
       </div>
     </div>
     <div class="form-row"><label>Beschreibung *</label><input id="e_description" value="${esc(expense.description)}" placeholder="z.B. Wachs, Dochte, Duftöle bei Lieferant XY"></div>
-    <div class="form-row"><label>Betrag (CHF) *</label><input type="number" step="0.05" id="e_amount" value="${expense.amount}"></div>
+    <div class="form-grid2">
+      <div class="form-row"><label>Betrag (CHF) *</label><input type="number" step="0.05" id="e_amount" value="${expense.amount}"></div>
+      <div class="form-row"><label>Wer hat bestellt / eingekauft?</label><input id="e_paidBy" value="${esc(expense.paidBy||"")}" placeholder="z.B. Ramona"></div>
+    </div>
+    <div class="section-title" style="margin-top:4px;">Rückzahlung über Geschäftskonto</div>
+    <div class="form-grid2">
+      <div class="form-row"><label>Status</label>
+        <select id="e_reimbStatus">
+          <option value="offen" ${(expense.reimbursementStatus||"offen")==="offen"?"selected":""}>Offen</option>
+          <option value="bezahlt" ${expense.reimbursementStatus==="bezahlt"?"selected":""}>Bezahlt</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Datum der Rückzahlung</label><input type="date" id="e_reimbDate" value="${expense.reimbursementDate||""}"></div>
+    </div>
   `;
   $("#modalFoot").innerHTML = `
     ${isEdit ? `<button class="btn btn-danger" id="delBtn" style="margin-right:auto;">Löschen</button>` : ""}
@@ -1855,6 +1954,14 @@ function openExpenseForm(expense){
   `;
   openModal();
   $("#cancelBtn").onclick = closeModal;
+
+  // auto-fill today's date the moment status flips to "bezahlt", if empty
+  $("#e_reimbStatus").addEventListener("change", ()=>{
+    if($("#e_reimbStatus").value==="bezahlt" && !$("#e_reimbDate").value){
+      $("#e_reimbDate").value = todayISO();
+    }
+  });
+
   if(isEdit){
     $("#delBtn").onclick = async ()=>{
       if(confirm("Diese Ausgabe wirklich löschen?")){
@@ -1869,7 +1976,13 @@ function openExpenseForm(expense){
     const amount = parseFloat($("#e_amount").value)||0;
     if(!description){ toast("Bitte eine Beschreibung angeben."); return; }
     if(amount<=0){ toast("Bitte einen Betrag angeben."); return; }
-    const data = {date:$("#e_date").value||todayISO(), category:$("#e_category").value, description, amount};
+    const reimbursementStatus = $("#e_reimbStatus").value;
+    const data = {
+      date:$("#e_date").value||todayISO(), category:$("#e_category").value, description, amount,
+      paidBy: $("#e_paidBy").value.trim(),
+      reimbursementStatus,
+      reimbursementDate: reimbursementStatus==="bezahlt" ? ($("#e_reimbDate").value||todayISO()) : null,
+    };
     if(isEdit) await dbUpdate("expenses", expense.id, data);
     else { data.createdAt = new Date().toISOString(); await dbAdd("expenses", data); }
     closeModal();
