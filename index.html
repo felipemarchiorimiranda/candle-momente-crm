@@ -664,7 +664,7 @@ let canWrite = true;
 const COLMAP = {
   customers: {name:"name", customerNumber:"customer_number", contact:"contact", street:"street", zip:"zip", ort:"ort", phone:"phone", email:"email", notes:"notes", files:"files", createdAt:"created_at"},
   articles:  {name:"name", category:"category", price:"price", cost:"cost", unit:"unit", createdAt:"created_at"},
-  orders:    {number:"number", customerId:"customer_id", date:"date", status:"status", items:"items", notes:"notes", invoiceId:"invoice_id", lieferscheinNumber:"lieferschein_number", lieferscheinDate:"lieferschein_date", plannedDeliveryDate:"planned_delivery_date", createdAt:"created_at"},
+  orders:    {number:"number", customerId:"customer_id", date:"date", status:"status", items:"items", notes:"notes", invoiceId:"invoice_id", lieferscheinNumber:"lieferschein_number", lieferscheinDate:"lieferschein_date", plannedDeliveryDate:"planned_delivery_date", returns:"returns", createdAt:"created_at"},
   invoices:  {number:"number", orderId:"order_id", customerId:"customer_id", date:"date", dueDate:"due_date", items:"items", vatRate:"vat_rate", paymentStatus:"payment_status", paidDate:"paid_date", createdAt:"created_at"},
   tasks:     {customerId:"customer_id", type:"type", text:"text", dueDate:"due_date", done:"done", createdAt:"created_at"},
   expenses:  {date:"date", category:"category", description:"description", amount:"amount", paidBy:"paid_by", reimbursementStatus:"reimbursement_status", reimbursementDate:"reimbursement_date", createdAt:"created_at"},
@@ -763,14 +763,26 @@ function customerById(id){ return state.customers.find(c=>c.id===id); }
 function articleById(id){ return state.articles.find(a=>a.id===id); }
 function orderById(id){ return state.orders.find(o=>o.id===id); }
 
+function orderReturnsTotal(order){
+  return (order.returns||[]).reduce((s,r)=> s + (Number(r.qty)||0)*(Number(r.price)||0), 0);
+}
+function orderReturnsQty(order){
+  return (order.returns||[]).reduce((s,r)=> s + (Number(r.qty)||0), 0);
+}
 function orderTotal(order){
-  return (order.items||[]).reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.price)||0), 0);
+  // gross items minus anything taken back at delivery (Rücknahme -> Gutschrift)
+  return (order.items||[]).reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.price)||0), 0) - orderReturnsTotal(order);
 }
 function orderCost(order){
-  return (order.items||[]).reduce((s,it)=>{
+  const gross = (order.items||[]).reduce((s,it)=>{
     const art = it.articleId ? articleById(it.articleId) : null;
     return s + (Number(it.qty)||0)*(Number(art && art.cost)||0);
   }, 0);
+  const returned = (order.returns||[]).reduce((s,r)=>{
+    const art = r.articleId ? articleById(r.articleId) : null;
+    return s + (Number(r.qty)||0)*(Number(art && art.cost)||0);
+  }, 0);
+  return gross - returned;
 }
 function invoiceTotals(inv){
   const subtotal = (inv.items||[]).reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.price)||0), 0);
@@ -872,6 +884,28 @@ function brandedSignature(){
     </div>
   </div>`;
 }
+function brandedReturnsBlock(returns){
+  const rows = (returns||[]).filter(r=>(Number(r.qty)||0)>0);
+  if(!rows.length) return "";
+  return `
+    <div style="margin:4px 0 18px;">
+      <div style="font-size:11px;color:${BRAND.soft};font-weight:700;text-transform:uppercase;margin-bottom:6px;">Zurückgenommene Artikel</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+        <thead><tr style="background:${BRAND.navy};color:#fff;">
+          <th style="text-align:left;padding:8px;">Artikel</th>
+          <th style="text-align:center;padding:8px;">Menge</th>
+          <th style="text-align:center;padding:8px;">Einheit</th>
+        </tr></thead>
+        <tbody>${rows.map(r=>`<tr>
+          <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};">${esc(r.name)}</td>
+          <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};text-align:center;">${r.qty}</td>
+          <td style="padding:7px 8px;border-bottom:1px solid ${BRAND.border};text-align:center;">Stk</td>
+        </tr>`).join("")}</tbody>
+      </table>
+      <div style="font-size:11px;color:${BRAND.navy};margin-top:6px;">Diese Artikel wurden bei der Lieferung zurückgenommen und werden auf der Rechnung als Gutschrift verrechnet.</div>
+    </div>`;
+}
+
 async function openLieferscheinView(order){
   if(!order) return;
   if(!order.lieferscheinNumber){
@@ -881,13 +915,53 @@ async function openLieferscheinView(order){
     order = {...order, lieferscheinNumber:number, lieferscheinDate:lsDate};
   }
   const c = customerById(order.customerId) || {};
+  const orderItems = order.items||[];
+  let currentReturns = (order.returns||[]).map(r=>({...r}));
+  const prefillQty = (idx)=>{
+    const it = orderItems[idx];
+    const r = currentReturns.find(x=> x.idx===idx && x.name===it.name);
+    return r ? r.qty : 0;
+  };
+  const extraHtml = `
+    <div class="section-title" style="margin-top:6px;">Rücknahmen bei der Lieferung</div>
+    <div class="empty-hint" style="padding:0 0 8px;">Falls Artikel zurückgenommen wurden: Menge eintragen. Sie erscheint auf dem Lieferschein und wird auf der Rechnung automatisch als Gutschrift abgezogen.</div>
+    <div class="line-items">
+      <div class="line-item-row head" style="grid-template-columns:2fr 90px 110px;"><div>Artikel</div><div>Geliefert</div><div>Zurückgenommen</div></div>
+      ${orderItems.map((it,idx)=>`
+        <div class="line-item-row" style="grid-template-columns:2fr 90px 110px;">
+          <div>${esc(it.name)}</div>
+          <div class="num">${it.qty}</div>
+          <input type="number" min="0" max="${it.qty}" step="1" class="ret-qty" data-idx="${idx}" value="${prefillQty(idx)}">
+        </div>`).join("")}
+    </div>`;
+  const collectReturns = async ()=>{
+    const returns = [];
+    let invalid = false;
+    document.querySelectorAll("#modalBody .ret-qty").forEach(inp=>{
+      const idx = +inp.dataset.idx;
+      const it = orderItems[idx];
+      let q = parseFloat(inp.value)||0;
+      if(q > (Number(it.qty)||0)){ invalid = true; return; }
+      if(q > 0) returns.push({idx, name:it.name, articleId:it.articleId||null, qty:q, price:Number(it.price)||0});
+    });
+    if(invalid){ toast("Zurückgenommene Menge darf nicht grösser als die gelieferte Menge sein."); return false; }
+    const changed = JSON.stringify(returns) !== JSON.stringify(currentReturns.map(({idx,name,articleId,qty,price})=>({idx,name,articleId,qty,price})));
+    currentReturns = returns;
+    if(changed){
+      await dbUpdate("orders", order.id, {returns});
+      const fresh = orderById(order.id) || {...order, returns};
+      await syncInvoiceCredits(fresh);
+    }
+    return true;
+  };
   openPrintPreviewModal("Lieferschein", c, (editedCustomer)=> `
       ${brandedHeader("LIEFERSCHEIN", [["Lieferschein-Nr.", order.lieferscheinNumber], ["Datum", fmtDate(order.lieferscheinDate||todayISO())], ["Bestellung", order.number||""], ["Kundennummer", editedCustomer.customerNumber||"–"]])}
       ${brandedCustomerBlock(editedCustomer)}
       ${brandedItemsTable(order.items||[], false)}
+      ${brandedReturnsBlock(currentReturns)}
       ${brandedSignature()}
       ${brandedFooter()}
-    `, "Lieferschein_" + order.lieferscheinNumber);
+    `, "Lieferschein_" + order.lieferscheinNumber, {extraHtml, beforeBuild: collectReturns});
 }
 
 function customerRevenue(customerId){
@@ -1317,7 +1391,7 @@ function renderBestellungen(){
       <td class="clickable" data-open="${o.id}">${esc(customerName(o.customerId))}</td>
       <td class="clickable" data-open="${o.id}">${fmtDate(o.date)}</td>
       <td class="clickable" data-open="${o.id}" style="${overdue?'color:var(--red);font-weight:700;':''}">${o.plannedDeliveryDate ? fmtDate(o.plannedDeliveryDate) : "–"}${overdue?" ⚠":""}</td>
-      <td class="num clickable" data-open="${o.id}">${fmtCHF(orderTotal(o))}</td>
+      <td class="num clickable" data-open="${o.id}">${fmtCHF(orderTotal(o))}${orderReturnsTotal(o)>0 ? `<div style="font-size:11px;color:var(--amber);">abzgl. Rücknahme ${fmtCHF(orderReturnsTotal(o))}</div>` : ""}</td>
       <td class="num clickable" data-open="${o.id}" style="color:${margin>=0?'var(--green)':'var(--red)'};">${fmtCHF(margin)}${fmtMarginPct(margin, orderTotal(o))}</td>
       <td>
         <select class="status-select badge-${o.status}" data-statusof="${o.id}">
@@ -1689,6 +1763,12 @@ function articleStats(articleId, name, year){
       if((articleId && it.articleId===articleId) || (!articleId && it.name===name)){
         qty += Number(it.qty)||0;
         revenue += (Number(it.qty)||0)*(Number(it.price)||0);
+      }
+    });
+    (o.returns||[]).forEach(r=>{
+      if((articleId && r.articleId===articleId) || (!articleId && r.name===name)){
+        qty -= Number(r.qty)||0;
+        revenue -= (Number(r.qty)||0)*(Number(r.price)||0);
       }
     });
   });
@@ -2064,6 +2144,9 @@ function renderStatistik(){
       soldAllTime += Number(it.qty)||0;
       if(isSelectedYear) soldSelectedYear += Number(it.qty)||0;
     });
+    const retQty = orderReturnsQty(o);
+    soldAllTime -= retQty;
+    if(isSelectedYear) soldSelectedYear -= retQty;
   });
 
   // aggregate cost/revenue per distinct article (by articleId, falling back to name for free-text items)
@@ -2134,6 +2217,32 @@ function renderStatistik(){
 }
 $("#statYearFilter").addEventListener("change", renderStatistik);
 
+// Articles taken back at delivery become negative "Gutschrift" lines on the invoice,
+// so the invoice total is automatically reduced.
+function creditLinesFromReturns(order){
+  return (order.returns||[]).filter(r=>(Number(r.qty)||0)>0).map(r=>({
+    name: "Gutschrift Rücknahme: " + r.name,
+    qty: -(Number(r.qty)||0),
+    price: Number(r.price)||0,
+    credit: true,
+  }));
+}
+// If an invoice already exists for this order, bring its credit lines in line with the
+// current returns (never touches already-paid invoices).
+async function syncInvoiceCredits(order){
+  if(!order || !order.invoiceId) return;
+  const inv = state.invoices.find(i=>i.id===order.invoiceId);
+  if(!inv) return;
+  if(inv.paymentStatus==="bezahlt"){
+    toast("Rechnung " + inv.number + " ist schon bezahlt – Gutschrift bitte dort manuell prüfen.");
+    return;
+  }
+  const baseItems = (inv.items||[]).filter(it=>!it.credit);
+  const items = baseItems.concat(creditLinesFromReturns(order));
+  await dbUpdate("invoices", inv.id, {items});
+  toast("Gutschrift auf Rechnung " + inv.number + " aktualisiert.");
+}
+
 async function createInvoiceFromOrder(order){
   if(!order) return;
   const c = customerById(order.customerId);
@@ -2142,7 +2251,7 @@ async function createInvoiceFromOrder(order){
     number: nextDocNumber("RE","invoices"),
     date: todayISO(),
     dueDate: new Date(Date.now()+30*86400000).toISOString().slice(0,10),
-    items: (order.items||[]).map(it=>({name:it.name, qty:it.qty, price:it.price})),
+    items: (order.items||[]).map(it=>({name:it.name, qty:it.qty, price:it.price})).concat(creditLinesFromReturns(order)),
     vatRate: VAT_RATE,
     paymentStatus: "offen",
     createdAt: new Date().toISOString(),
@@ -2251,7 +2360,7 @@ function openInvoiceEditForm(inv){
           <option value="">– frei –</option>
           ${state.articles.map(a=>`<option value="${a.id}" ${it.articleId===a.id?"selected":""}>${esc(a.name)}</option>`).join("")}
         </select>
-        <input type="number" min="0" step="1" class="li-qty" data-idx="${idx}" value="${it.qty}">
+        <input type="number" step="1" class="li-qty" data-idx="${idx}" value="${it.qty}">
         <input type="number" min="0" step="0.05" class="li-price" data-idx="${idx}" value="${it.price}">
         <div class="num row-total" data-total-idx="${idx}" style="font-size:13px;">${fmtCHF((Number(it.qty)||0)*(Number(it.price)||0))}</div>
         <button class="rm-line" data-idx="${idx}">✕</button>
@@ -2283,13 +2392,13 @@ function openInvoiceEditForm(inv){
 
   $("#ivCancelBtn").onclick = ()=> openInvoiceView(inv);
   $("#ivSaveBtn").onclick = async ()=>{
-    const cleanItems = items.filter(it=> (it.name||articleById(it.articleId)?.name) && (Number(it.qty)>0));
+    const cleanItems = items.filter(it=> (it.name||articleById(it.articleId)?.name) && (Number(it.qty)!==0));
     if(!cleanItems.length){ toast("Bitte mindestens eine Position mit Menge angeben."); return; }
     const data = {
       date: $("#iv_date").value || todayISO(),
       dueDate: $("#iv_due").value || null,
       vatRate: (parseFloat($("#iv_vat").value)||0) / 100,
-      items: cleanItems.map(it=>({articleId:it.articleId||null, name:it.name||articleById(it.articleId)?.name||"Artikel", qty:Number(it.qty)||0, price:Number(it.price)||0})),
+      items: cleanItems.map(it=>({articleId:it.articleId||null, name:it.name||articleById(it.articleId)?.name||"Artikel", qty:Number(it.qty)||0, price:Number(it.price)||0, ...(it.credit ? {credit:true} : {})})),
     };
     await dbUpdate("invoices", inv.id, data);
     toast("Rechnung aktualisiert.");
@@ -2479,7 +2588,8 @@ async function downloadPdfFromPrintView(filename){
   }
 }
 
-function openPrintPreviewModal(title, customer, buildHtml, filenameBase){
+function openPrintPreviewModal(title, customer, buildHtml, filenameBase, opts){
+  opts = opts || {};
   $("#modalTitle").textContent = title + " – Angaben vor Druck prüfen";
   $("#modalBody").innerHTML = `
     <div class="empty-hint" style="padding:0 0 12px;">Für Spezialfälle: Angaben hier nur für dieses Dokument anpassen. Der Kundendatensatz bleibt unverändert.</div>
@@ -2489,6 +2599,7 @@ function openPrintPreviewModal(title, customer, buildHtml, filenameBase){
       <div class="form-row"><label>PLZ</label><input id="pp_zip" value="${esc(customer.zip||"")}"></div>
       <div class="form-row"><label>Ort</label><input id="pp_ort" value="${esc(customer.ort||"")}"></div>
     </div>
+    ${opts.extraHtml||""}
   `;
   $("#modalFoot").innerHTML = `
     <button class="btn" id="ppCancelBtn">Abbrechen</button>
@@ -2506,14 +2617,16 @@ function openPrintPreviewModal(title, customer, buildHtml, filenameBase){
       ort: $("#pp_ort").value.trim(),
     };
   }
-  $("#ppPrintBtn").onclick = ()=>{
+  $("#ppPrintBtn").onclick = async ()=>{
     const edited = getEdited();
+    if(opts.beforeBuild){ const ok = await opts.beforeBuild(); if(ok===false) return; }
     $("#printView").innerHTML = buildHtml(edited);
     closeModal();
     setTimeout(()=> window.print(), 50);
   };
   $("#ppPdfBtn").onclick = async ()=>{
     const edited = getEdited();
+    if(opts.beforeBuild){ const ok = await opts.beforeBuild(); if(ok===false) return; }
     $("#printView").innerHTML = buildHtml(edited);
     const btn = $("#ppPdfBtn");
     btn.disabled = true; btn.textContent = "Erstelle PDF …";
