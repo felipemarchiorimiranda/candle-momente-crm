@@ -746,7 +746,13 @@ async function dbUpdate(col, id, data){
     if(error) throw error;
     await fetchAll(col);
     return true;
-  }catch(e){ toast("Änderung fehlgeschlagen."); return false; }
+  }catch(e){
+    console.error(e);
+    const msg = (e && e.message) ? e.message : "";
+    if(/returns/.test(msg) && /column/i.test(msg)) toast("Spalte 'returns' fehlt in Supabase – bitte setup_returns.sql im SQL Editor ausführen.");
+    else toast("Änderung fehlgeschlagen" + (msg ? ": " + msg : "."));
+    return false;
+  }
 }
 async function dbDelete(col, id){
   if(!db) return false;
@@ -1428,8 +1434,11 @@ $("#newBestellungBtn").addEventListener("click", ()=> openOrderForm());
 function openOrderForm(order, presetCustomerId){
   const isEdit = !!order;
   order = order || {customerId:presetCustomerId||"", date:todayISO(), status:"offen", items:[], notes:""};
-  let items = (order.items||[]).map(it=>({...it}));
-  if(!items.length) items.push({articleId:"",name:"",qty:1,price:0});
+  let items = (order.items||[]).map((it,idx)=>{
+    const r = (order.returns||[]).find(x=> x.idx===idx && x.name===it.name);
+    return {...it, retQty: r ? r.qty : 0};
+  });
+  if(!items.length) items.push({articleId:"",name:"",qty:1,price:0,retQty:0});
 
   $("#modalTitle").textContent = isEdit ? ("Bestellung " + order.number) : "Neue Bestellung";
   $("#modalBody").innerHTML = `
@@ -1448,9 +1457,10 @@ function openOrderForm(order, presetCustomerId){
     </div>
     <div class="form-row">
       <label>Artikel</label>
-      <div class="line-items" id="o_lines">
-        <div class="line-item-row head"><div>Artikel</div><div>Menge</div><div>Preis</div><div>Total</div><div></div></div>
+      <div class="line-items" id="o_lines" style="overflow-x:auto;">
+        <div class="line-item-row head" style="grid-template-columns:2fr 60px 80px 70px 84px 26px;min-width:540px;"><div>Artikel</div><div>Menge</div><div>Preis</div><div title="Bei der Lieferung zurückgenommene Menge">Zurück</div><div>Total</div><div></div></div>
       </div>
+      <div class="empty-hint" style="padding:6px 0 0;font-size:11.5px;">„Zurück“ = bei der Lieferung zurückgenommene Menge. Sie wird auf dem Lieferschein vermerkt und auf der Rechnung automatisch als Gutschrift abgezogen.</div>
       <button class="btn btn-sm add-line-btn" id="o_addLine">+ Position</button>
     </div>
     <div class="form-row"><label>Notizen</label><textarea id="o_notes">${esc(order.notes||"")}</textarea></div>
@@ -1464,7 +1474,10 @@ function openOrderForm(order, presetCustomerId){
   `;
   openModal();
   if(isEdit){
-    $("#lsBtn").onclick = ()=> openLieferscheinView(order);
+    $("#lsBtn").onclick = async ()=>{
+      if(!(await saveOrder())) return;
+      openLieferscheinView(orderById(order.id) || order);
+    };
   }
 
   function renderLines(){
@@ -1473,6 +1486,7 @@ function openOrderForm(order, presetCustomerId){
     items.forEach((it,idx)=>{
       const row = document.createElement("div");
       row.className = "line-item-row";
+      row.style.cssText = "grid-template-columns:2fr 60px 80px 70px 84px 26px;min-width:540px;";
       row.innerHTML = `
         <select data-idx="${idx}" class="li-article">
           <option value="">– frei –</option>
@@ -1480,6 +1494,7 @@ function openOrderForm(order, presetCustomerId){
         </select>
         <input type="number" min="0" step="1" class="li-qty" data-idx="${idx}" value="${it.qty}">
         <input type="number" min="0" step="0.05" class="li-price" data-idx="${idx}" value="${it.price}">
+        <input type="number" min="0" step="1" class="li-ret" data-idx="${idx}" value="${it.retQty||0}">
         <div class="num row-total" data-total-idx="${idx}" style="font-size:13px;">${fmtCHF((Number(it.qty)||0)*(Number(it.price)||0))}</div>
         <button class="rm-line" data-idx="${idx}">✕</button>
       `;
@@ -1501,6 +1516,7 @@ function openOrderForm(order, presetCustomerId){
     }
     wrap.querySelectorAll(".li-qty").forEach(inp=> inp.addEventListener("input", ()=>{ const idx=+inp.dataset.idx; items[idx].qty = parseFloat(inp.value)||0; updateRowTotal(idx); updateTotal(); }));
     wrap.querySelectorAll(".li-price").forEach(inp=> inp.addEventListener("input", ()=>{ const idx=+inp.dataset.idx; items[idx].price = parseFloat(inp.value)||0; updateRowTotal(idx); updateTotal(); }));
+    wrap.querySelectorAll(".li-ret").forEach(inp=> inp.addEventListener("input", ()=>{ items[+inp.dataset.idx].retQty = parseFloat(inp.value)||0; }));
     wrap.querySelectorAll(".rm-line").forEach(btn=> btn.addEventListener("click", ()=>{ items.splice(+btn.dataset.idx,1); renderLines(); updateTotal(); }));
     updateTotal();
   }
@@ -1508,7 +1524,7 @@ function openOrderForm(order, presetCustomerId){
     const total = items.reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.price)||0), 0);
     $("#o_total").textContent = fmtCHF(total);
   }
-  $("#o_addLine").addEventListener("click", ()=>{ items.push({articleId:"",name:"",qty:1,price:0}); renderLines(); });
+  $("#o_addLine").addEventListener("click", ()=>{ items.push({articleId:"",name:"",qty:1,price:0,retQty:0}); renderLines(); });
   renderLines();
 
   $("#cancelBtn").onclick = closeModal;
@@ -1522,26 +1538,47 @@ function openOrderForm(order, presetCustomerId){
       }
     };
   }
-  $("#saveBtn").onclick = async ()=>{
+  // Validates + writes the order (incl. returned quantities). Returns true on success.
+  async function saveOrder(){
     const customerId = $("#o_customer").value;
-    if(!customerId){ toast("Bitte einen Kunden wählen."); return; }
-    const cleanItems = items.filter(it=> (it.name||articleById(it.articleId)?.name) && (Number(it.qty)>0));
-    if(!cleanItems.length){ toast("Bitte mindestens eine Position mit Menge angeben."); return; }
+    if(!customerId){ toast("Bitte einen Kunden wählen."); return false; }
+    const cleanSrc = items.filter(it=> (it.name||articleById(it.articleId)?.name) && (Number(it.qty)>0));
+    if(!cleanSrc.length){ toast("Bitte mindestens eine Position mit Menge angeben."); return false; }
+    const cleanItems = cleanSrc.map(it=>({articleId:it.articleId||null, name:it.name||articleById(it.articleId)?.name||"Artikel", qty:Number(it.qty)||0, price:Number(it.price)||0}));
+    const returns = [];
+    for(let i=0;i<cleanSrc.length;i++){
+      const rq = Number(cleanSrc[i].retQty)||0;
+      if(rq > cleanItems[i].qty){ toast("„Zurück“ darf nicht grösser als die Menge sein (" + cleanItems[i].name + ")."); return false; }
+      if(rq > 0) returns.push({idx:i, name:cleanItems[i].name, articleId:cleanItems[i].articleId, qty:rq, price:cleanItems[i].price});
+    }
     const data = {
       customerId, date:$("#o_date").value||todayISO(), status:$("#o_status").value,
       plannedDeliveryDate: $("#o_plannedDelivery").value || null,
-      items: cleanItems.map(it=>({articleId:it.articleId||null, name:it.name||articleById(it.articleId)?.name||"Artikel", qty:Number(it.qty)||0, price:Number(it.price)||0})),
+      items: cleanItems,
       notes: $("#o_notes").value.trim(),
     };
+    // only touch the returns column when there is something to store / clear
+    const hadReturns = (order.returns||[]).length > 0;
+    if(returns.length || hadReturns) data.returns = returns;
     if(isEdit){
-      await dbUpdate("orders", order.id, data);
-      toast("Bestellung aktualisiert.");
+      const ok = await dbUpdate("orders", order.id, data);
+      if(!ok) return false;
+      if(data.returns !== undefined){
+        const fresh = orderById(order.id);
+        if(fresh) await syncInvoiceCredits(fresh);
+      }
+      toast("Bestellung gespeichert.");
     }else{
       data.number = nextDocNumber("B","orders");
       data.createdAt = new Date().toISOString();
-      await dbAdd("orders", data);
+      const id = await dbAdd("orders", data);
+      if(!id) return false;
       toast("Bestellung erfasst.");
     }
+    return true;
+  }
+  $("#saveBtn").onclick = async ()=>{
+    if(!(await saveOrder())) return;
     closeModal();
     if($("#view-kunde-detail").classList.contains("active")) renderKundeDetail(state.currentCustomerId);
   };
